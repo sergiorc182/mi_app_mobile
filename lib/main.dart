@@ -1,103 +1,108 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_analytics/firebase_analytics.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
+
   runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo con Firebase',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
-      ),
-      home: const MyHomePage(title: 'Mi primera app con Flutter y Firebase'),
+      title: 'Firebase Auth',
+      debugShowCheckedModeBanner: false,
+      home: const LoginScreen(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-  final String title;
+class LoginScreen extends StatelessWidget {
+  const LoginScreen({super.key});
 
-  @override
-  State<MyHomePage> createState() => _MyHomePageState();
-}
+  Future<User?> signInWithGoogle() async {
+    final GoogleSignIn googleSignIn = GoogleSignIn();
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+    final GoogleSignInAccount? googleUser =
+        await googleSignIn.signIn();
 
-  // Instancias de Firebase
-  final FirebaseAnalytics analytics = FirebaseAnalytics.instance;
-  final FirebaseFirestore firestore = FirebaseFirestore.instance;
+    if (googleUser == null) return null;
 
-  void _incrementCounter() {
-    setState(() {
-      _counter++;
-    });
-  }
+    final googleAuth = await googleUser.authentication;
 
-  // Función para enviar evento a Firebase Analytics
-  Future<void> _sendAnalyticsEvent() async {
-    await analytics.logEvent(
-      name: 'contador_incrementado',
-      parameters: {'valor': _counter},
+    final credential = GoogleAuthProvider.credential(
+      accessToken: googleAuth.accessToken,
+      idToken: googleAuth.idToken,
     );
-    print('Evento enviado a Firebase Analytics: $_counter');
-  }
 
-  // Función para enviar dato a Firestore
-  Future<void> _sendDataToFirestore() async {
-    await firestore.collection('contador').add({
-      'valor': _counter,
-      'timestamp': FieldValue.serverTimestamp(),
-    });
-    print('Dato enviado a Firestore: $_counter');
+    final userCredential = await FirebaseAuth.instance
+        .signInWithCredential(credential);
+
+    return userCredential.user;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        title: Text(widget.title),
+      appBar: AppBar(title: const Text("Login con Google")),
+      body: Center(
+        child: ElevatedButton(
+          child: const Text("Iniciar sesión con Google"),
+          onPressed: () async {
+            final user = await signInWithGoogle();
+
+            if (user != null) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => HomeScreen(user: user),
+                ),
+              );
+            }
+          },
+        ),
       ),
+    );
+  }
+}
+
+class HomeScreen extends StatelessWidget {
+  final User user;
+
+  const HomeScreen({super.key, required this.user});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text("Bienvenido")),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Text('Has presionado el botón esta cantidad de veces:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
+            Text("Hola, ${user.displayName}"),
+            Text(user.email ?? ''),
+            const SizedBox(height: 20),
+            if (user.photoURL != null)
+              CircleAvatar(
+                radius: 40,
+                backgroundImage: NetworkImage(user.photoURL!),
+              ),
             const SizedBox(height: 20),
             ElevatedButton(
-              onPressed: _sendAnalyticsEvent,
-              child: const Text('Enviar evento a Firebase Analytics'),
-            ),
-            const SizedBox(height: 10),
-            ElevatedButton(
-              onPressed: _sendDataToFirestore,
-              child: const Text('Enviar dato a Firestore'),
+              onPressed: () async {
+                await FirebaseAuth.instance.signOut();
+                Navigator.pop(context);
+              },
+              child: const Text("Cerrar sesión"),
             ),
           ],
         ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Incrementar',
-        child: const Icon(Icons.add),
       ),
     );
   }
