@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_sign_in/google_sign_in.dart';
+
+// 👇 MVC
+import 'controlador/login.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,92 +18,65 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Firebase Auth',
+      title: 'Chatbot Compras',
       debugShowCheckedModeBanner: false,
-      home: const LoginScreen(),
+      home: const InitScreen(),
     );
   }
 }
 
-class LoginScreen extends StatelessWidget {
-  const LoginScreen({super.key});
+// 🔥 PANTALLA INICIAL (verifica Firebase)
+class InitScreen extends StatefulWidget {
+  const InitScreen({super.key});
 
-  Future<User?> signInWithGoogle() async {
-    final GoogleSignIn googleSignIn = GoogleSignIn();
+  @override
+  State<InitScreen> createState() => _InitScreenState();
+}
 
-    final GoogleSignInAccount? googleUser =
-        await googleSignIn.signIn();
+class _InitScreenState extends State<InitScreen> {
+  String estado = "Conectando a Firebase...";
 
-    if (googleUser == null) return null;
+  @override
+  void initState() {
+    super.initState();
+    verificarFirebase();
+  }
 
-    final googleAuth = await googleUser.authentication;
+  Future<void> verificarFirebase() async {
+    try {
+      await FirebaseAuth.instance.signInAnonymously();
 
-    final credential = GoogleAuthProvider.credential(
-      accessToken: googleAuth.accessToken,
-      idToken: googleAuth.idToken,
-    );
+      setState(() {
+        estado = "✅ Firebase conectado correctamente";
+      });
 
-    final userCredential = await FirebaseAuth.instance
-        .signInWithCredential(credential);
+      await Future.delayed(const Duration(seconds: 2));
 
-    return userCredential.user;
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const LoginScreen(),
+          ),
+        );
+      }
+    } catch (e) {
+  print("🔥 ERROR FIREBASE: $e");
+
+  setState(() {
+    estado = "❌ Error conectando Firebase";
+  });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Login con Google")),
       body: Center(
-        child: ElevatedButton(
-          child: const Text("Iniciar sesión con Google"),
-          onPressed: () async {
-            final user = await signInWithGoogle();
-
-            if (user != null) {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => HomeScreen(user: user),
-                ),
-              );
-            }
-          },
-        ),
-      ),
-    );
-  }
-}
-
-class HomeScreen extends StatelessWidget {
-  final User user;
-
-  const HomeScreen({super.key, required this.user});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("Bienvenido")),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text("Hola, ${user.displayName}"),
-            Text(user.email ?? ''),
-            const SizedBox(height: 20),
-            if (user.photoURL != null)
-              CircleAvatar(
-                radius: 40,
-                backgroundImage: NetworkImage(user.photoURL!),
-              ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () async {
-                await FirebaseAuth.instance.signOut();
-                Navigator.pop(context);
-              },
-              child: const Text("Cerrar sesión"),
-            ),
-          ],
+        child: Text(
+          estado,
+          style: const TextStyle(fontSize: 18),
+          textAlign: TextAlign.center,
         ),
       ),
     );
