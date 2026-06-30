@@ -1,8 +1,0 @@
-flutter devices
-flutter run -d emulator-5554
-
-groq   (apikey)
-openai/gpt-oss-120B
-geminicli
-
-flutter ai toolkit
