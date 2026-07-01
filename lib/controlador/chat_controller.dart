@@ -1,65 +1,117 @@
-import 'package:flutter/foundation.dart';
+import 'dart:developer';
+
+import '../modelo/conversacion.dart';
+import '../modelo/mensaje.dart';
+import '../modelo/firebase/auth.dart';
 import '../modelo/firebase/firestore.dart';
 
 class ChatController {
-  final List<Map<String, String>> _mensajes = [
-    {'bot': 'Hola 👋\n¿Qué estás buscando?'}
-  ];
-
+  final AuthService _authService = AuthService();
   final FirestoreService _firestoreService = FirestoreService();
-  final List<Map<String, String>> _preguntasCache = [];
 
-  List<Map<String, String>> get mensajes => List.unmodifiable(_mensajes);
+  Conversacion? conversacionSeleccionada;
+  List<Conversacion> conversaciones = [];
+  List<Mensaje> mensajes = [];
 
-  VoidCallback? onChanged;
+  Future<List<Conversacion>> cargarConversaciones() async {
+    final user = _authService.currentUser;
+    if (user == null) return [];
 
-  int _usuarioMensajes = 0;
+    conversaciones = await _firestoreService.obtenerConversaciones(user.uid);
+    if (conversacionSeleccionada == null && conversaciones.isNotEmpty) {
+      conversacionSeleccionada = conversaciones.first;
+    }
+    return conversaciones;
+  }
 
-  Future<void> enviarMensaje(String texto) async {
+  Future<List<Mensaje>> cargarMensajes(String conversacionId) async {
+    mensajes = await _firestoreService.obtenerMensajes(conversacionId);
+    return mensajes;
+  }
+
+  Future<Conversacion?> crearNuevaConversacion() async {
+    final user = _authService.currentUser;
+    if (user == null) return null;
+
+    final id = await _firestoreService.crearConversacion(user.uid);
+    final nueva = Conversacion(
+      id: id,
+      usuarioId: user.uid,
+      titulo: 'Nueva conversación',
+      createdAt: DateTime.now(),
+    );
+
+    conversaciones.insert(0, nueva);
+    conversacionSeleccionada = nueva;
+    mensajes = [];
+    return nueva;
+  }
+
+  Future<void> seleccionarConversacion(String conversacionId) async {
+    final seleccionada = conversaciones.where((c) => c.id == conversacionId).firstOrNull;
+    if (seleccionada != null) {
+      conversacionSeleccionada = seleccionada;
+    }
+  }
+
+  Future<List<Mensaje>> enviarMensaje(String texto) async {
     final contenido = texto.trim();
-    if (contenido.isEmpty) return;
+    if (contenido.isEmpty) return mensajes;
 
-    _agregarMensajeUsuario(contenido);
-    _usuarioMensajes++;
-
-    if (_usuarioMensajes == 1) {
-      _agregarMensajeBot('Contame más sobre lo que buscás');
-      return;
+    if (conversacionSeleccionada == null) {
+      await crearNuevaConversacion();
     }
 
-    if (_preguntasCache.isEmpty) {
-      await _cargarPreguntas();
+    final conversacionId = conversacionSeleccionada?.id;
+    if (conversacionId == null) return mensajes;
+
+    final mensajeUsuario = Mensaje(
+      id: '',
+      conversacionId: conversacionId,
+      autor: 'user',
+      mensaje: contenido,
+      fecha: DateTime.now(),
+    );
+    await _firestoreService.guardarMensaje(mensajeUsuario);
+
+    final respuesta = await _generarRespuestaBot(contenido);
+    final mensajeBot = Mensaje(
+      id: '',
+      conversacionId: conversacionId,
+      autor: 'bot',
+      mensaje: respuesta,
+      fecha: DateTime.now(),
+    );
+    await _firestoreService.guardarMensaje(mensajeBot);
+
+    mensajes = await _firestoreService.obtenerMensajes(conversacionId);
+    return mensajes;
+  }
+
+  Future<void> eliminarConversacion(String conversacionId) async {
+    await _firestoreService.eliminarConversacion(conversacionId);
+    conversaciones.removeWhere((c) => c.id == conversacionId);
+    if (conversacionSeleccionada?.id == conversacionId) {
+      conversacionSeleccionada = conversaciones.isNotEmpty ? conversaciones.first : null;
+      mensajes = [];
     }
-
-    final respuesta = _buscarRespuestaLocal(contenido);
-    _agregarMensajeBot(respuesta);
   }
 
-  Future<void> _cargarPreguntas() async {
-    final preguntas = await _firestoreService.obtenerPreguntas();
-    _preguntasCache.addAll(preguntas);
-  }
-
-  String _buscarRespuestaLocal(String texto) {
-    final mensaje = texto.toLowerCase();
-
-    for (final pregunta in _preguntasCache) {
-      final keyword = pregunta['keyword']?.toLowerCase() ?? '';
-      final respuesta = pregunta['pregunta'];
-      if (keyword.isNotEmpty && mensaje.contains(keyword)) {
-        return respuesta ?? 'Contame más sobre lo que buscás';
+  Future<String> _generarRespuestaBot(String texto) async {
+    try {
+      final productos = await _firestoreService.buscarProductos(texto);
+      if (productos.isNotEmpty) {
+        final producto = productos.first;
+        return 'Vi este producto: ${producto.nombre} por ${producto.precio.toStringAsFixed(0)}. ¿Quieres que te ayude con más opciones?';
       }
+      return 'Gracias por tu mensaje. Estoy listo para ayudarte con productos, categorías o recomendaciones.';
+    } catch (e, stack) {
+      log('Error al generar respuesta del bot: $e', stackTrace: stack);
+      return 'Gracias por tu mensaje. Estoy listo para ayudarte.';
     }
-
-    return 'Contame más sobre lo que buscás';
   }
+}
 
-  void _agregarMensajeUsuario(String texto) {
-    _mensajes.add({'user': texto});
-  }
-
-  void _agregarMensajeBot(String texto) {
-    _mensajes.add({'bot': texto});
-    onChanged?.call();
-  }
+extension on Iterable<Conversacion> {
+  Conversacion? get firstOrNull => isEmpty ? null : first;
 }

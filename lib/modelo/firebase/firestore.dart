@@ -1,149 +1,150 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+
+import '../../modelo/conversacion.dart';
+import '../../modelo/mensaje.dart';
+import '../../modelo/producto.dart';
 import '../../modelo/usuario.dart';
-import 'firebase.dart';
 
 class FirestoreService {
   static const String usersCollection = 'users';
-  static const String legacyUsuarioCollection = 'Usuario';
-  static const String preguntasCollection = 'preguntas';
+  static const String conversacionesCollection = 'conversaciones';
+  static const String mensajesCollection = 'mensajes';
+  static const String productosCollection = 'productos';
 
-  // Getter to avoid accessing FirebaseFirestore.instance before Firebase is initialized
   FirebaseFirestore get _db => FirebaseFirestore.instance;
 
-  Future<Usuario?> obtenerUsuarioPorDNI(String dni) async {
-    final result = await _db
-        .collection(usersCollection)
-        .where('dni', isEqualTo: dni)
-        .limit(1)
+  Future<void> crearUsuario(Usuario usuario) async {
+    await _db.collection(usersCollection).doc(usuario.id).set(
+      usuario.toFirestore(),
+      SetOptions(merge: true),
+    );
+  }
+
+  Future<Usuario?> obtenerUsuario(String uid) async {
+    final doc = await _db.collection(usersCollection).doc(uid).get();
+    if (!doc.exists) return null;
+    return Usuario.fromFirestore(doc.data() ?? {}, doc.id);
+  }
+
+  Future<void> actualizarUsuario(String uid, Map<String, dynamic> data) async {
+    await _db.collection(usersCollection).doc(uid).update(data);
+  }
+
+  Future<List<Conversacion>> obtenerConversaciones(String usuarioId) async {
+    final snapshot = await _db
+        .collection(conversacionesCollection)
+        .where('usuarioId', isEqualTo: usuarioId)
         .get();
 
-    if (result.docs.isEmpty) return null;
-
-    final doc = result.docs.first;
-    return Usuario.fromFirestore(doc.data(), doc.id);
+    final conversaciones = snapshot.docs
+        .map((doc) => Conversacion.fromFirestore(doc.data(), doc.id))
+        .toList();
+    conversaciones.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return conversaciones;
   }
 
-  Future<Usuario> crearUsuario(String dni) async {
-    final data = {
-      'dni': dni,
-      'nombre': 'Usuario',
-      'email': '',
-      'imagenCara': '',
-      'createdAt': FieldValue.serverTimestamp(),
-    };
-
-    final docRef = await _db.collection(usersCollection).add(data);
-    final doc = await docRef.get();
-    final docData = doc.data();
-    if (docData == null) {
-      throw FirebaseException(
-        plugin: 'cloud_firestore',
-        message: 'No se pudo obtener el documento de usuario creado',
-      );
-    }
-    return Usuario.fromFirestore(docData, doc.id);
+  Future<String> crearConversacion(String usuarioId, {String titulo = 'Nueva conversación'}) async {
+    final docRef = await _db.collection(conversacionesCollection).add({
+      'usuarioId': usuarioId,
+      'titulo': titulo,
+      'createdAt': Timestamp.now(),
+    });
+    return docRef.id;
   }
 
-  Future<FirebaseStatus> verificarColeccionUsers() async {
-    try {
-      final snapshot = await _db.collection(usersCollection).limit(1).get();
-      if (snapshot.docs.isNotEmpty) {
-        return FirebaseStatus.connected;
-      }
-
-      final legacySnapshot =
-          await _db.collection(legacyUsuarioCollection).limit(20).get();
-      if (legacySnapshot.docs.isNotEmpty) {
-        await _migrarColeccionUsuario(legacySnapshot.docs);
-        return FirebaseStatus.collectionMissing;
-      }
-
-      await _db.collection(usersCollection).add({
-        'dni': '00000000',
-        'nombre': 'Sistema',
-        'email': '',
-        'imagenCara': '',
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-      return FirebaseStatus.collectionMissing;
-    } on FirebaseException catch (e) {
-      if (e.code == 'permission-denied') {
-        return FirebaseStatus.firestoreDenied;
-      }
-      return FirebaseStatus.firestoreError;
-    } catch (_) {
-      return FirebaseStatus.firestoreError;
-    }
-  }
-
-  Future<void> _migrarColeccionUsuario(
-      List<QueryDocumentSnapshot> docs) async {
+  Future<void> eliminarConversacion(String conversacionId) async {
     final batch = _db.batch();
-    for (final doc in docs) {
-      final data = doc.data() as Map<String, dynamic>;
-      final newData = {
-        'dni': data['dni'] ?? '00000000',
-        'nombre': data['nombre'] ?? 'Usuario',
-        'email': data['email'] ?? '',
-        'imagenCara': data['imagenCara'] ?? '',
-        'createdAt': data['createdAt'] ?? FieldValue.serverTimestamp(),
-      };
-      final newRef = _db.collection(usersCollection).doc();
-      batch.set(newRef, newData);
+    batch.delete(_db.collection(conversacionesCollection).doc(conversacionId));
+
+    final mensajes = await _db
+        .collection(mensajesCollection)
+        .where('conversacionId', isEqualTo: conversacionId)
+        .get();
+
+    for (final doc in mensajes.docs) {
+      batch.delete(doc.reference);
     }
+
     await batch.commit();
   }
 
-  Future<List<Map<String, String>>> obtenerPreguntas() async {
-    final snapshot = await _db.collection(preguntasCollection).get();
-    return snapshot.docs.map((doc) {
-      final data = doc.data();
-      return {
-        'keyword': data['keyword'] as String? ?? '',
-        'pregunta': data['pregunta'] as String? ?? 'Contame más sobre lo que buscás',
-      };
-    }).toList();
+  Future<List<Mensaje>> obtenerMensajes(String conversacionId) async {
+    final snapshot = await _db
+        .collection(mensajesCollection)
+        .where('conversacionId', isEqualTo: conversacionId)
+        .get();
+
+    final mensajes = snapshot.docs
+        .map((doc) => Mensaje.fromFirestore(doc.data(), doc.id))
+        .toList();
+    mensajes.sort((a, b) => a.fecha.compareTo(b.fecha));
+    return mensajes;
   }
 
-  Future<String> obtenerRespuestaPorIntencion(String texto) async {
-    try {
-      final snapshot = await _db.collection(preguntasCollection).get();
-      final mensaje = texto.toLowerCase();
+  Future<void> guardarMensaje(Mensaje mensaje) async {
+    await _db.collection(mensajesCollection).add(mensaje.toFirestore());
+  }
 
-      for (final doc in snapshot.docs) {
-        final data = doc.data();
-        final keyword = data['keyword'] as String? ?? '';
-        if (keyword.isNotEmpty && mensaje.contains(keyword.toLowerCase())) {
-          return data['pregunta'] as String? ??
-              'Contame más sobre lo que buscás';
-        }
-      }
+  Future<void> asegurarProductosIniciales() async {
+    final snapshot = await _db.collection(productosCollection).limit(1).get();
+    if (snapshot.docs.isNotEmpty) return;
 
-      return 'Contame más sobre lo que buscás';
-    } catch (_) {
-      return 'Contame más sobre lo que buscás';
+    final productosIniciales = [
+      {
+        'nombre': 'iPhone 15',
+        'categoria': 'Celulares',
+        'marca': 'Apple',
+        'precio': 999000.0,
+        'stock': 12,
+        'descripcion': 'Smartphone de última generación',
+        'imagen': '',
+        'activo': true,
+      },
+      {
+        'nombre': 'MacBook Air',
+        'categoria': 'Laptops',
+        'marca': 'Apple',
+        'precio': 1499000.0,
+        'stock': 7,
+        'descripcion': 'Laptop ligera y potente',
+        'imagen': '',
+        'activo': true,
+      },
+      {
+        'nombre': 'Auriculares Sony',
+        'categoria': 'Audio',
+        'marca': 'Sony',
+        'precio': 189000.0,
+        'stock': 20,
+        'descripcion': 'Sonido envolvente y batería larga',
+        'imagen': '',
+        'activo': true,
+      },
+    ];
+
+    for (final producto in productosIniciales) {
+      await _db.collection(productosCollection).add(producto);
     }
   }
 
-  Future<void> semillarPreguntas() async {
-    try {
-      final snapshot = await _db.collection(preguntasCollection).limit(1).get();
-      if (snapshot.docs.isNotEmpty) return;
+  Future<List<Producto>> buscarProductos(String texto) async {
+    await asegurarProductosIniciales();
 
-      final preguntasIniciales = [
-        {'keyword': 'aire', 'pregunta': '¿Cuántas frigorías necesitás?'},
-        {'keyword': 'tv', 'pregunta': '¿De cuántas pulgadas?'},
-        {'keyword': 'heladera', 'pregunta': '¿Con freezer o sin freezer?'},
-        {'keyword': 'lavarropa', 'pregunta': '¿De carga frontal o superior?'},
-        {'keyword': 'cocina', 'pregunta': '¿A gas o eléctrica?'},
-        {'keyword': 'microondas', 'pregunta': '¿Con grill o sin grill?'},
-      ];
+    final snapshot = await _db
+        .collection(productosCollection)
+        .where('activo', isEqualTo: true)
+        .get();
 
-      for (final data in preguntasIniciales) {
-        await _db.collection(preguntasCollection).add(data);
-      }
-    } catch (_) {
-      // Ignorar errores de inicialización de preguntas.
-    }
+    final consulta = texto.toLowerCase();
+    return snapshot.docs
+        .map((doc) => Producto.fromFirestore(doc.data(), doc.id))
+        .where((producto) {
+          final hayCoincidencia = producto.nombre.toLowerCase().contains(consulta) ||
+              producto.categoria.toLowerCase().contains(consulta) ||
+              producto.marca.toLowerCase().contains(consulta) ||
+              producto.descripcion.toLowerCase().contains(consulta);
+          return hayCoincidencia;
+        })
+        .toList();
   }
 }

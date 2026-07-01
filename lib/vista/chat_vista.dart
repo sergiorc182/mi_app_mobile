@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+
 import '../controlador/chat_controller.dart';
-import '../controlador/login_controller.dart';
-import 'login_vista.dart';
+import 'perfil_vista.dart';
 
 class ChatVista extends StatefulWidget {
   const ChatVista({super.key});
@@ -11,113 +11,152 @@ class ChatVista extends StatefulWidget {
 }
 
 class _ChatVistaState extends State<ChatVista> {
-  late final ChatController _chatController;
-  final LoginController _loginController = LoginController.instance;
+  final ChatController _chatController = ChatController();
+  final TextEditingController _mensajeController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    _chatController = ChatController();
-    _chatController.onChanged = () {
-      if (mounted) setState(() {});
-    };
+    _cargarDatos();
   }
 
   @override
   void dispose() {
-    _chatController.onChanged = null;
+    _mensajeController.dispose();
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  Future<void> _cargarDatos() async {
+    await _chatController.cargarConversaciones();
+    if (_chatController.conversacionSeleccionada != null) {
+      await _chatController.cargarMensajes(_chatController.conversacionSeleccionada!.id);
+    }
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _enviarMensaje() async {
+    final texto = _mensajeController.text.trim();
+    if (texto.isEmpty) return;
+
+    setState(() => _isLoading = true);
+    _mensajeController.clear();
+    await _chatController.enviarMensaje(texto);
+    if (mounted) setState(() => _isLoading = false);
+    await Future.delayed(const Duration(milliseconds: 200));
+    if (_scrollController.hasClients) {
+      _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final usuario = _loginController.usuarioActual;
+    final conversaciones = _chatController.conversaciones;
+    final mensajes = _chatController.mensajes;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Asistente de compra')),
-      endDrawer: Drawer(
-        child: Column(
-          children: [
-            const DrawerHeader(
-              child: Text('Mi Cuenta', style: TextStyle(fontSize: 20)),
+      appBar: AppBar(
+        title: const Text('Chat'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.person),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const PerfilVista()),
             ),
-            if (_loginController.estaLogueado() && usuario != null) ...[
-              ListTile(title: Text('DNI: ${usuario.dni}')),
-              ListTile(
-                title: const Text('Cerrar sesión'),
-                onTap: () {
-                  _loginController.cerrarSesion();
-                  Navigator.pop(context);
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(builder: (_) => const LoginVista()),
-                  );
-                },
-              ),
-            ] else ...[
-              const ListTile(title: Text('No estás registrado')),
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const LoginVista()),
-                    );
-                  },
-                  child: const Text('Registrarse'),
-                ),
-              ),
-            ]
-          ],
-        ),
+          ),
+        ],
       ),
       body: Column(
         children: [
-          Expanded(
+          SizedBox(
+            height: 90,
             child: ListView.builder(
-              padding: const EdgeInsets.all(10),
-              itemCount: _chatController.mensajes.length,
+              scrollDirection: Axis.horizontal,
+              itemCount: conversaciones.length,
               itemBuilder: (context, index) {
-                final mensaje = _chatController.mensajes[index];
-                final esBot = mensaje.containsKey('bot');
-                return Align(
-                  alignment:
-                      esBot ? Alignment.centerLeft : Alignment.centerRight,
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(vertical: 5),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: esBot ? Colors.grey[300] : Colors.blue[200],
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(mensaje.values.first),
+                final conversacion = conversaciones[index];
+                return Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: GestureDetector(
+                    onTap: () async {
+                      await _chatController.seleccionarConversacion(conversacion.id);
+                      await _chatController.cargarMensajes(conversacion.id);
+                      setState(() {});
+                    },
+                    child: Chip(label: Text(conversacion.titulo)),
                   ),
                 );
               },
             ),
           ),
-          Container(
-            padding: const EdgeInsets.all(10),
-            child: Wrap(
-              spacing: 10,
+          Expanded(
+            child: ListView.builder(
+              controller: _scrollController,
+              itemCount: mensajes.length,
+              itemBuilder: (context, index) {
+                final mensaje = mensajes[index];
+                final esUsuario = mensaje.autor == 'user';
+                return Align(
+                  alignment: esUsuario ? Alignment.centerRight : Alignment.centerLeft,
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: esUsuario ? Colors.blueAccent : Colors.grey[300],
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(mensaje.mensaje),
+                  ),
+                );
+              },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
               children: [
-                ElevatedButton(
-                  onPressed: () =>
-                      _chatController.enviarMensaje('Aire acondicionado'),
-                  child: const Text('Aire'),
+                Expanded(
+                  child: TextField(
+                    controller: _mensajeController,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      hintText: 'Escribí tu mensaje',
+                    ),
+                  ),
                 ),
-                ElevatedButton(
-                  onPressed: () =>
-                      _chatController.enviarMensaje('Heladera'),
-                  child: const Text('Heladera'),
-                ),
-                ElevatedButton(
-                  onPressed: () => _chatController.enviarMensaje('TV'),
-                  child: const Text('TV'),
-                ),
+                const SizedBox(width: 8),
+                IconButton(onPressed: _isLoading ? null : _enviarMensaje, icon: const Icon(Icons.send)),
               ],
             ),
+          ),
+        ],
+      ),
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          FloatingActionButton(
+            heroTag: 'newConversation',
+            onPressed: () async {
+              await _chatController.crearNuevaConversacion();
+              await _chatController.cargarMensajes(_chatController.conversacionSeleccionada!.id);
+              setState(() {});
+            },
+            child: const Icon(Icons.add),
+          ),
+          const SizedBox(height: 8),
+          FloatingActionButton(
+            heroTag: 'deleteConversation',
+            backgroundColor: Colors.redAccent,
+            onPressed: () async {
+              final conversacion = _chatController.conversacionSeleccionada;
+              if (conversacion == null) return;
+              await _chatController.eliminarConversacion(conversacion.id);
+              setState(() {});
+            },
+            child: const Icon(Icons.delete),
           ),
         ],
       ),
