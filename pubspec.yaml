@@ -1,0 +1,39 @@
+name: mi_app_mobile
+description: "A new Flutter project."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.11.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # Firebase
+  firebase_core: ^4.11.0
+  firebase_auth: ^6.5.3
+  google_sign_in: ^7.2.0
+  cloud_firestore: ^6.6.0
+  firebase_analytics: ^12.4.0
+  firebase_app_check: ^0.4.5
+
+  # Groq AI
+  http: ^1.2.0
+
+  # Environment
+  flutter_dotenv: ^5.2.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - .env
+    - assets/catalogo.json
