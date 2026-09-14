@@ -1,0 +1,36 @@
+= VENDEDORVIRTUAL - INTEGRACION CON TELEGRAM ===========
+
+1) CREAR EL BOT (una sola vez, desde cualquier dispositivo)
+   - Abri Telegram y busca: @BotFather
+   - Escribi: /newbot
+   - Nombre que quieras: VendedorVirtual
+   - Usuario (debe terminar en "bot"): VendedorVirtualBot
+   - BotFather te da un TOKEN tipo: 123456:ABC-DEF...
+     GUARDALO, es la llave del bot.
+
+2) PEGAR EL TOKEN EN LA PC
+   - Abri el archivo .env (esta en la raiz del proyecto mi_app_mobile)
+   - Busca la linea: TELEGRAM_BOT_TOKEN=
+   - Pegalo ahi mismo, sin espacios:
+        TELEGRAM_BOT_TOKEN=123456:ABC-DEF...
+   - Guarda el archivo.
+
+3) CORRER EL BOT (cada vez que quieras demo)
+   - Abri una terminal en la carpeta del proyecto:
+        cd "C:\Users\Usuario\Desktop\proyecto seminario\mi_app_mobile"
+   - Ejecuta:
+        python telegram_bot\bot.py
+   - Deja la ventana abierta (el bot funciona mientras este corriendo).
+     Si da error al iniciar, es porque el token en .env esta incompleto.
+
+4) USARLO
+   - En Telegram busca tu bot (ej: @VendedorVirtualBot) y toca Start.
+   - Escribile directamente: "aire acondicionado", "telefono", etc.
+   - Ultimo comando: /nuevo  -> empieza conversacion nueva.
+
+NOTAS
+   - Usa la MISMA key de Groq de la app y el mismo catalogo.json.
+   - Sin busqueda web; respuestas de max 500 tokens (modelo qwen/qwen3.8-27b).
+   - Un mismo bot solo puede correr en UN lugar a la vez.
+   - El token de Telegram no se sube a git (esta en .env, ignorado).
+========================================================================

@@ -16,7 +16,7 @@ class PerfilController {
     if (user == null) return null;
 
     try {
-      return _firestoreService.obtenerUsuario(user.uid);
+      return await _firestoreService.obtenerUsuario(user.uid);
     } catch (e, stack) {
       log('Error al cargar perfil: $e', stackTrace: stack);
       return null;
@@ -40,7 +40,7 @@ class PerfilController {
           'fotoPerfil': fotoPerfil.trim(),
         },
       );
-      return _firestoreService.obtenerUsuario(user.uid);
+      return await _firestoreService.obtenerUsuario(user.uid);
     } catch (e, stack) {
       log('Error al actualizar perfil: $e', stackTrace: stack);
       return null;

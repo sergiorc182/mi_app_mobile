@@ -1,9 +1,11 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'firebase_options.dart';
+import 'tema/app_theme.dart';
 import 'vista/splash_vista.dart';
 
 Future<void> main() async {
@@ -15,6 +17,12 @@ Future<void> main() async {
   await FirebaseAppCheck.instance.activate(
     providerAndroid: const AndroidDebugProvider(),
   );
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: Brightness.light,
+    systemNavigationBarColor: Color(0xFF070A14),
+    systemNavigationBarIconBrightness: Brightness.light,
+  ));
   runApp(const MyApp());
 }
 
@@ -23,10 +31,11 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
-      title: 'Asistente Logístico',
+    return MaterialApp(
+      title: 'VendedorVirtual',
       debugShowCheckedModeBanner: false,
-      home: SplashVista(),
+      theme: buildAppTheme(),
+      home: const SplashVista(),
     );
   }
 }

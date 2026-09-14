@@ -1,7 +1,6 @@
 import '../modelo/chat_service.dart';
 import '../modelo/conversacion.dart';
 import '../modelo/mensaje.dart';
-import '../modelo/producto.dart';
 import '../modelo/producto_service.dart';
 import '../modelo/firebase/auth.dart';
 import '../modelo/firebase/firestore.dart';
@@ -62,6 +61,14 @@ class ChatController {
     if (seleccionada != null) {
       conversacionSeleccionada = seleccionada;
     }
+  }
+
+  Future<List<String>> cargarCategorias() async {
+    if (!_catalogoCargado) {
+      await _productoService.cargarCatalogo();
+      _catalogoCargado = true;
+    }
+    return _productoService.categorias;
   }
 
   Future<List<Mensaje>> enviarMensaje(String texto) async {
