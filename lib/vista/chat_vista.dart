@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../controlador/chat_controller.dart';
-import '../controlador/login_controller.dart';
 import '../controlador/perfil_controller.dart';
-import '../modelo/usuario.dart';
 import '../tema/app_colors.dart';
 import '../tema/app_gradients.dart';
 import '../tema/app_text_styles.dart';
@@ -22,8 +20,9 @@ class _ChatVistaState extends State<ChatVista> {
   final ChatController _chatController = ChatController();
   final TextEditingController _mensajeController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
-  Usuario? _usuario;
+  bool _drawerAbierto = false;
   List<String> _categorias = <String>[];
   static const List<Color> _acentosCategorias = [
     AppColors.cyan,
@@ -48,9 +47,6 @@ class _ChatVistaState extends State<ChatVista> {
   }
 
   Future<void> _cargarDatos() async {
-    _usuario = LoginController.instance.usuarioActual ??
-        await LoginController.instance.cargarUsuarioActual();
-
     List<String> categorias = <String>[];
     try {
       categorias = await _chatController.cargarCategorias();
@@ -67,15 +63,6 @@ class _ChatVistaState extends State<ChatVista> {
     if (mounted) {
       setState(() => _categorias = categorias);
     }
-  }
-
-  String get _identidad {
-    final usuario = _usuario;
-    if (usuario == null) return 'Usuario';
-    if (usuario.dni.isNotEmpty) return 'DNI ${usuario.dni}';
-    final email = usuario.email;
-    if (email.isNotEmpty) return email.split('@').first;
-    return 'Usuario';
   }
 
   Future<void> _enviarTexto(String texto) async {
@@ -163,18 +150,19 @@ class _ChatVistaState extends State<ChatVista> {
 
   @override
   Widget build(BuildContext context) {
-    final conversaciones = _chatController.conversaciones;
     final mensajes = _chatController.mensajes;
     final isLoading = _chatController.isLoading;
 
     return Scaffold(
+      key: _scaffoldKey,
+      drawer: _buildDrawer(context),
+      onDrawerChanged: (abierto) => setState(() => _drawerAbierto = abierto),
       body: TechBackground(
         child: SafeArea(
           bottom: false,
           child: Column(
             children: [
               _buildHeader(context),
-              if (conversaciones.isNotEmpty) _buildConversaciones(conversaciones),
               Expanded(
                 child: mensajes.isEmpty && !isLoading
                     ? _buildHero(context)
@@ -201,7 +189,7 @@ class _ChatVistaState extends State<ChatVista> {
         children: [
           Row(
             children: [
-              const AppLogo(size: 34),
+              _botonMenu(context),
               const SizedBox(width: 10),
               const Expanded(
                 child: Text(
@@ -241,107 +229,273 @@ class _ChatVistaState extends State<ChatVista> {
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              InfoChip(
-                icon: Icons.badge_outlined,
-                accent: AppColors.violetSoft,
-                text: _identidad,
-              ),
-              const Spacer(),
-              _iconAction(
-                tooltip: 'Perfil',
-                icon: Icons.person_outline_rounded,
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const PerfilVista()),
-                ),
-              ),
-              _iconAction(
-                tooltip: 'Nuevo chat',
-                icon: Icons.add_circle_outline_rounded,
-                onPressed: _nuevoChat,
-              ),
-              _iconAction(
-                tooltip: 'Borrar historial',
-                icon: Icons.delete_sweep_outlined,
-                onPressed: _chatController.conversaciones.isEmpty
-                    ? null
-                    : _borrarHistorial,
-              ),
-              _iconAction(
-                tooltip: 'Cerrar sesión',
-                icon: Icons.logout_rounded,
-                color: AppColors.textSecondary,
-                onPressed: _cerrarSesion,
-              ),
-            ],
-          ),
         ],
       ),
     );
   }
 
-  Widget _iconAction({
-    required IconData icon,
-    required VoidCallback? onPressed,
-    required String tooltip,
-    Color? color,
-  }) {
-    return IconButton(
-      tooltip: tooltip,
-      onPressed: onPressed,
-      iconSize: 20,
-      splashRadius: 18,
-      color: color ?? AppColors.textSecondary,
-      disabledColor: AppColors.border,
-      icon: Icon(icon),
+  Widget _botonMenu(BuildContext context) {
+    return Tooltip(
+      message: _drawerAbierto ? 'Cerrar menú' : 'Abrir menú',
+      child: GestureDetector(
+        onTap: () {
+          final scaffold = _scaffoldKey.currentState;
+          if (scaffold == null) return;
+          if (scaffold.isDrawerOpen) {
+            scaffold.closeDrawer();
+          } else {
+            scaffold.openDrawer();
+          }
+        },
+        child: Container(
+          width: 34,
+          height: 34,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: AppColors.surfaceAlt,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: AnimatedRotation(
+            turns: _drawerAbierto ? 0.5 : 0,
+            duration: const Duration(milliseconds: 200),
+            child: const Icon(
+              Icons.chevron_right_rounded,
+              size: 22,
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ),
+      ),
     );
   }
 
-  Widget _buildConversaciones(List conversations) {
-    return SizedBox(
-      height: 52,
+  Widget _buildDrawer(BuildContext context) {
+    return Drawer(
+      backgroundColor: AppColors.background,
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 22, 20, 16),
+              child: Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.violet.withValues(alpha: 0.35),
+                          blurRadius: 18,
+                          spreadRadius: -2,
+                        ),
+                      ],
+                    ),
+                    child: ClipOval(
+                      child: Image.asset(
+                        'assets/icons/app_icon.png',
+                        fit: BoxFit.cover,
+                        width: 44,
+                        height: 44,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'VendedorVirtual',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.textPrimary,
+                            letterSpacing: -0.3,
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Asistente de compras',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(color: AppColors.border, height: 1),
+            const SizedBox(height: 8),
+            _drawerItem(
+              icon: Icons.add_comment_outlined,
+              label: 'Nuevo chat',
+              onTap: () {
+                Navigator.pop(context);
+                _nuevoChat();
+              },
+            ),
+            _drawerItem(
+              icon: Icons.badge_outlined,
+              label: 'Mis datos',
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const PerfilVista()),
+                );
+              },
+            ),
+            _drawerItem(
+              icon: Icons.delete_sweep_outlined,
+              label: 'Borrar historial',
+              enabled: _chatController.conversaciones.isNotEmpty,
+              onTap: () {
+                Navigator.pop(context);
+                _borrarHistorial();
+              },
+            ),
+            const SizedBox(height: 8),
+            const Divider(color: AppColors.border, height: 1),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.history_rounded,
+                    size: 16,
+                    color: AppColors.textMuted,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'CONVERSACIONES',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.1,
+                      color: AppColors.textMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(child: _buildConversaciones()),
+            const Divider(color: AppColors.border, height: 1),
+            _drawerItem(
+              icon: Icons.logout_rounded,
+              label: 'Cerrar sesión',
+              color: AppColors.danger,
+              onTap: () {
+                Navigator.pop(context);
+                _cerrarSesion();
+              },
+            ),
+            const SizedBox(height: 10),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _drawerItem({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    bool enabled = true,
+    Color? color,
+  }) {
+    final colorFinal = enabled
+        ? (color ?? AppColors.textPrimary)
+        : AppColors.textMuted;
+    return ListTile(
+      enabled: enabled,
+      leading: Icon(icon, color: colorFinal, size: 22),
+      title: Text(
+        label,
+        style: TextStyle(
+          color: colorFinal,
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      onTap: enabled ? onTap : null,
+    );
+  }
+
+  Widget _buildConversaciones() {
+    final conversaciones = _chatController.conversaciones;
+    if (conversaciones.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        child: Text(
+          'Todavía no tenés conversaciones.',
+          style: TextStyle(
+            color: AppColors.textMuted,
+            fontSize: 13,
+          ),
+        ),
+      );
+    }
+    return Scrollbar(
+      thumbVisibility: true,
       child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        itemCount: conversations.length,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        itemCount: conversaciones.length,
         itemBuilder: (context, index) {
-          final conversacion = conversations[index];
+          final conversacion = conversaciones[index];
           final seleccionada =
               conversacion.id == _chatController.conversacionSeleccionada?.id;
           return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
             child: GestureDetector(
               onTap: () async {
                 await _chatController.seleccionarConversacion(conversacion.id);
                 await _chatController.cargarMensajes(conversacion.id);
+                if (!context.mounted) return;
+                Navigator.pop(context);
                 if (mounted) setState(() {});
               },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                alignment: Alignment.center,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 decoration: BoxDecoration(
                   gradient: seleccionada ? AppGradients.primary : null,
                   color: seleccionada ? null : AppColors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(50),
+                  borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: seleccionada ? Colors.transparent : AppColors.border,
                   ),
                 ),
-                child: Text(
-                  conversacion.titulo,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: seleccionada
-                        ? Colors.white
-                        : AppColors.textSecondary,
-                  ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.chat_bubble_outline_rounded,
+                      size: 16,
+                      color:
+                          seleccionada ? Colors.white : AppColors.textSecondary,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        conversacion.titulo,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: seleccionada
+                              ? Colors.white
+                              : AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -397,34 +551,43 @@ class _ChatVistaState extends State<ChatVista> {
                       style: AppTextStyles.sectionLabel,
                     ),
                     const SizedBox(height: 14),
-                    if (_categorias.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 8),
-                        child: SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: AppColors.violetSoft,
-                          ),
-                        ),
-                      )
-                    else
-                      Wrap(
-                        spacing: 10,
-                        runSpacing: 10,
-                        alignment: WrapAlignment.center,
-                        children: _categorias.asMap().entries.map((entry) {
-                          final categoria = entry.value;
-                          final accent = _acentosCategorias[
-                              entry.key % _acentosCategorias.length];
-                          return CategoryChip(
-                            label: categoria,
-                            accent: accent,
-                            onTap: () => _enviarTexto(categoria),
-                          );
-                        }).toList(),
-                      ),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 320),
+                      switchInCurve: Curves.easeOutCubic,
+                      child: _categorias.isEmpty
+                          ? const Padding(
+                              key: ValueKey('categorias-loading'),
+                              padding: EdgeInsets.symmetric(vertical: 8),
+                              child: SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppColors.violetSoft,
+                                ),
+                              ),
+                            )
+                          : Wrap(
+                              key: const ValueKey('categorias-lista'),
+                              spacing: 10,
+                              runSpacing: 10,
+                              alignment: WrapAlignment.center,
+                              children: _categorias.asMap().entries.map((entry) {
+                                final categoria = entry.value;
+                                final accent = _acentosCategorias[
+                                    entry.key % _acentosCategorias.length];
+                                return EntryFade(
+                                  delay: Duration(milliseconds: 60 * entry.key),
+                                  offset: 12,
+                                  child: CategoryChip(
+                                    label: categoria,
+                                    accent: accent,
+                                    onTap: () => _enviarTexto(categoria),
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                    ),
                     const SizedBox(height: 36),
                   ],
                 ),
@@ -477,76 +640,17 @@ class _ChatVistaState extends State<ChatVista> {
       itemCount: mensajes.length + (isLoading ? 1 : 0),
       itemBuilder: (context, index) {
         if (isLoading && index == mensajes.length) {
-          return const Padding(
-            padding: EdgeInsets.symmetric(vertical: 14),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: AppColors.violetSoft,
-                  ),
-                ),
-                SizedBox(width: 10),
-                Text(
-                  'Procesando...',
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 13.5,
-                  ),
-                ),
-              ],
-            ),
-          );
+          return const _TypingIndicator();
         }
 
         final mensaje = mensajes[index];
         final esUsuario = mensaje.autor == 'user';
         final texto = mensaje.mensaje;
 
-        return Align(
-          alignment: esUsuario ? Alignment.centerRight : Alignment.centerLeft,
-          child: Container(
-            margin: const EdgeInsets.symmetric(vertical: 5),
-            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
-            constraints: BoxConstraints(
-              maxWidth: MediaQuery.of(context).size.width * 0.78,
-            ),
-            decoration: BoxDecoration(
-              gradient:
-                  esUsuario ? AppGradients.primary : null,
-              color: esUsuario ? null : AppColors.surfaceAlt,
-              borderRadius: BorderRadius.only(
-                topLeft: const Radius.circular(18),
-                topRight: const Radius.circular(18),
-                bottomLeft: Radius.circular(esUsuario ? 18 : 5),
-                bottomRight: Radius.circular(esUsuario ? 5 : 18),
-              ),
-              border: esUsuario
-                  ? null
-                  : Border.all(color: AppColors.border),
-              boxShadow: esUsuario
-                  ? [
-                      BoxShadow(
-                        color: AppColors.violet.withValues(alpha: 0.20),
-                        blurRadius: 14,
-                        offset: const Offset(0, 5),
-                      ),
-                    ]
-                  : null,
-            ),
-            child: Text(
-              texto,
-              style: TextStyle(
-                color: esUsuario ? Colors.white : AppColors.textPrimary,
-                fontSize: 15,
-                height: 1.4,
-              ),
-            ),
-          ),
+        return _MensajeBurbuja(
+          key: ValueKey(mensaje.id),
+          esUsuario: esUsuario,
+          texto: texto,
         );
       },
     );
@@ -583,9 +687,7 @@ class _ChatVistaState extends State<ChatVista> {
     return Padding(
       padding: const EdgeInsets.all(8),
       child: GestureDetector(
-        onTap: enabled
-            ? () => _enviarTexto(_mensajeController.text)
-            : null,
+        onTap: enabled ? () => _enviarTexto(_mensajeController.text) : null,
         child: Container(
           width: 42,
           height: 42,
@@ -600,6 +702,117 @@ class _ChatVistaState extends State<ChatVista> {
             color: enabled ? Colors.white : AppColors.textMuted,
             size: 22,
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MensajeBurbuja extends StatelessWidget {
+  const _MensajeBurbuja({
+    super.key,
+    required this.esUsuario,
+    required this.texto,
+  });
+
+  final bool esUsuario;
+  final String texto;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, child) => Opacity(
+        opacity: value,
+        child: Transform.translate(
+          offset: Offset(esUsuario ? (1 - value) * 16 : (value - 1) * 16, 0),
+          child: child,
+        ),
+      ),
+      child: Align(
+        alignment: esUsuario ? Alignment.centerRight : Alignment.centerLeft,
+        child: Container(
+          margin: const EdgeInsets.symmetric(vertical: 5),
+          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.of(context).size.width * 0.78,
+          ),
+          decoration: BoxDecoration(
+            gradient: esUsuario ? AppGradients.primary : null,
+            color: esUsuario ? null : AppColors.surfaceAlt,
+            borderRadius: BorderRadius.only(
+              topLeft: const Radius.circular(18),
+              topRight: const Radius.circular(18),
+              bottomLeft: Radius.circular(esUsuario ? 18 : 5),
+              bottomRight: Radius.circular(esUsuario ? 5 : 18),
+            ),
+            border: esUsuario
+                ? null
+                : Border.all(color: AppColors.border),
+            boxShadow: esUsuario
+                ? [
+                    BoxShadow(
+                      color: AppColors.violet.withValues(alpha: 0.20),
+                      blurRadius: 14,
+                      offset: const Offset(0, 5),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Text(
+            texto,
+            style: TextStyle(
+              color: esUsuario ? Colors.white : AppColors.textPrimary,
+              fontSize: 15,
+              height: 1.4,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TypingIndicator extends StatelessWidget {
+  const _TypingIndicator();
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOut,
+      builder: (context, value, child) => Opacity(
+        opacity: value,
+        child: Transform.translate(
+          offset: Offset(0, (1 - value) * 8),
+          child: child,
+        ),
+      ),
+      child: const Padding(
+        padding: EdgeInsets.symmetric(vertical: 14),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppColors.violetSoft,
+              ),
+            ),
+            SizedBox(width: 10),
+            Text(
+              'Procesando...',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 13.5,
+              ),
+            ),
+          ],
         ),
       ),
     );

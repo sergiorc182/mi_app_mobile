@@ -13,11 +13,13 @@ Para usarlo:
 
 import json
 import os
+import re
 from datetime import datetime
 from pathlib import Path
 
 import requests
 from dotenv import load_dotenv
+from pypdf import PdfReader
 from telegram import Update
 from telegram.constants import ChatAction
 from telegram.ext import (
@@ -43,6 +45,8 @@ MESES = [
 ]
 
 _catalogo: list = []
+# segmentos de texto extraidos de assets/info.pdf (storage en PDF)
+_info_segmentos: list = []
 # chat_id -> lista de mensajes {'role': 'user'|'assistant', 'content': ...}
 _historial: dict = {}
 
@@ -61,8 +65,22 @@ def system_prompt() -> str:
         "3) Recomendar productos basandote en la informacion que el backend te "
         "proporcione (catalogo de productos). "
         "4) Mostrar los enlaces de compra cuando esten disponibles. "
-        "5) Guiar al usuario en el proceso comercial hasta la confirmacion. "
-        "NO inventes productos, precios, stock, URLs ni informacion tecnica: "
+        "5) Guiar al usuario activamente en el proceso comercial hasta la "
+        "confirmacion de la compra. En cada respuesta, intenta concretar la "
+        "venta: ofrecer avanzar al siguiente paso (pasar el enlace de compra, "
+        "confirmar el producto elegido, resolver dudas de precio o envio). "
+        "Si el usuario duda entre opciones, recomienda una concreta y "
+        "justifica brevemente por que. "
+        "Si el producto que pide no esta disponible o no hay stock, decile "
+        "claramente que no hay stock. "
+        "ALCANCE ESTRICTO: tu unico tema es la venta de electrodomesticos y "
+        "tecnologia del catalogo. Si te preguntan algo ajeno a las ventas "
+        "(clima, deportes, politica, programacion, chistes, tareas, temas "
+        "personales, etc.), no lo respondas: avisa amablemente que solo podes "
+        "ayudar con la compra de productos y redirigi la conversacion a que "
+        "quiere comprar. No des opiniones ni informacion general fuera de las "
+        "ventas. "
+        "NO inventes productos, precios, stock, URLs ni informacion tecnica. "
         "si el catalogo no lo tiene, decis que no esta disponible o pedis "
         "ajustar la busqueda. "
         "ESTILO DE RESPUESTA: se BREVE y directo, pensado para pantalla de "
@@ -81,6 +99,69 @@ def cargar_catalogo() -> None:
         _catalogo = json.load(f)
 
 
+def cargar_info_pdf() -> None:
+    global _info_segmentos
+    ruta = PROJECT_ROOT / "assets" / "info.pdf"
+    if not ruta.exists():
+        return
+    reader = PdfReader(str(ruta))
+    texto = "\n".join((pagina.extract_text() or "") for pagina in reader.pages)
+    _info_segmentos = _segmentar_info(texto)
+
+
+def _es_titulo(linea: str) -> bool:
+    return not linea.startswith("- ") and not linea.endswith((".","!","?",";",","))
+
+
+def _segmentar_info(texto: str) -> list:
+    segmentos: list = []
+    titulo = ""
+    actual = ""
+
+    def cerrar() -> None:
+        nonlocal actual
+        if actual.strip():
+            segmentos.append(actual.strip())
+        actual = ""
+
+    for linea_cruda in texto.splitlines():
+        linea = linea_cruda.strip()
+        if not linea:
+            continue
+        if linea.startswith("- "):
+            cerrar()
+            actual = f"{titulo}: {linea}" if titulo else linea
+            titulo = ""
+        elif _es_titulo(linea):
+            cerrar()
+            titulo = linea
+        elif actual:
+            actual = f"{actual} {linea}"
+        else:
+            segmentos.append(linea)
+    cerrar()
+
+    return [s for s in segmentos if len(s) > 10]
+
+
+def buscar_info(query: str, max_resultados: int = 4) -> list:
+    q = re.sub(r"[^a-z0-9\s]", " ", _normalizar(query)).strip()
+    if not q or not _info_segmentos:
+        return []
+    terminos = [t for t in q.split() if len(t) >= 4]
+
+    puntajes = []
+    for segmento in _info_segmentos:
+        texto = _normalizar(segmento)
+        score = 3 if q in texto else 0
+        score += sum(1 for t in terminos if t in texto)
+        if score > 0:
+            puntajes.append((score, segmento))
+
+    puntajes.sort(key=lambda x: x[0], reverse=True)
+    return [segmento for _, segmento in puntajes[:max_resultados]]
+
+
 def _normalizar(texto: str) -> str:
     remplazos = {
         "á": "a", "é": "e", "í": "i", "ó": "o", "ú": "u",
@@ -93,14 +174,25 @@ def _normalizar(texto: str) -> str:
 
 
 def buscar_productos(query: str) -> list:
-    q = _normalizar(query)
-    return [
-        p for p in _catalogo
-        if q in _normalizar(p["marca"])
-        or q in _normalizar(p["modelo"])
-        or q in _normalizar(p["especificacion_clave"])
-        or q in _normalizar(p["categoria"])
-    ]
+    q = re.sub(r"[^a-z0-9\s]", " ", _normalizar(query)).strip()
+    if not q:
+        return []
+    terminos = {t for t in q.split() if len(t) >= 4}
+    if not terminos:
+        return []
+
+    puntajes = []
+    for p in _catalogo:
+        campos = _normalizar(
+            f"{p['categoria']} {p['marca']} {p['modelo']} "
+            f"{p['especificacion_clave']}"
+        )
+        score = sum(1 for t in terminos if t in campos)
+        if score > 0:
+            puntajes.append((score, p))
+
+    puntajes.sort(key=lambda x: x[0], reverse=True)
+    return [p for _, p in puntajes]
 
 
 def presentar_producto(p: dict) -> str:
@@ -179,6 +271,20 @@ async def mensaje(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             }
         )
 
+    info = buscar_info(texto)
+    if info:
+        messages.append(
+            {
+                "role": "system",
+                "content": (
+                    "Informacion del asistente (extraida del documento "
+                    "de referencia):\n" + "\n".join(info) + "\n\n"
+                    "Usa esta informacion si responde a la consulta del "
+                    "usuario. No inventes datos que no esten ahi."
+                ),
+            }
+        )
+
     historial = _historial.setdefault(chat_id, [])
     messages.extend(historial[-10:])
     messages.append({"role": "user", "content": texto})
@@ -207,7 +313,11 @@ def main() -> None:
         )
 
     cargar_catalogo()
-    print(f"VendedorVirtual bot iniciado. Modelo: {GROQ_MODELO}. Esperando mensajes...")
+    cargar_info_pdf()
+    print(
+        f"VendedorVirtual bot iniciado. Modelo: {GROQ_MODELO}. "
+        f"Segmentos de info.pdf: {len(_info_segmentos)}. Esperando mensajes..."
+    )
 
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))

@@ -13,8 +13,19 @@ class ChatService {
       "3) Recomendar productos basándote en la información que el backend te "
       "proporcione (catálogo de productos). "
       "4) Mostrar los enlaces de compra cuando estén disponibles. "
-      "5) Guiar al usuario en el proceso comercial hasta la confirmación. "
-      "NO inventes productos, precios, stock, URLs ni información técnica: "
+      "5) Guiar al usuario activamente en el proceso comercial hasta la confirmación de la compra. "
+      "En cada respuesta, intentá concretar la venta: ofrecé avanzar al siguiente paso "
+      "(pasar el enlace de compra, confirmar el producto elegido, resolver dudas de precio o envío). "
+      "Si el usuario duda entre opciones, recomenda una concreta y justificá brevemente por qué. "
+      "Si el producto que pide no está disponible o no hay stock, decile claramente "
+      "que no hay stock. "
+      "ALCANCE ESTRICTO: tu único tema es la venta de electrodomésticos y tecnología "
+      "del catálogo. Si te preguntan algo ajeno a las ventas (clima, deportes, "
+      "política, programación, chistes, tareas, temas personales, etc.), no lo "
+      "respondas: avisá amablemente que solo podés ayudar con la compra de productos "
+      "y redirigí la conversación a qué quiere comprar. No des opiniones ni información "
+      "general fuera de las ventas. "
+      "NO inventes productos, precios, stock, URLs ni información técnica. "
       "si el catálogo no lo tiene, decís que no está disponible o pedís "
       "ajustar la búsqueda. "
       "ESTILO DE RESPUESTA: sé BREVE y directo, pensado para pantalla de "
@@ -33,7 +44,52 @@ class ChatService {
     return '${now.day} de ${meses[now.month - 1]} de ${now.year}';
   }
 
-  Future<String> sendMessage(String userMessage, List<Map<String, String>> chatHistory) async {
+  Future<String> generarTitulo(String primerMensaje) async {
+    final String? apiKey = dotenv.env['GROQ_API_KEY'];
+    if (apiKey == null) return '';
+
+    try {
+      final response = await http.post(
+        Uri.parse(_apiUrl),
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer $apiKey",
+        },
+        body: jsonEncode({
+          "model": "qwen/qwen3.8-27b",
+          "messages": [
+            {
+              "role": "system",
+              "content": "Generá un título muy corto (máximo 4 palabras) que "
+                  "resuma qué quiere comprar el usuario en su primer mensaje. "
+                  "Respondé SOLO con el título, sin comillas ni puntuación final.",
+            },
+            {"role": "user", "content": primerMensaje},
+          ],
+          "temperature": 0.3,
+          "max_tokens": 20,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final titulo = (data['choices'][0]['message']['content'] as String)
+            .trim()
+            .replaceAll(RegExp(r'''^["']+|["']+$'''), '')
+            .replaceAll(RegExp(r'[.\n]+$'), '')
+            .trim();
+        return titulo.length > 40 ? titulo.substring(0, 40).trim() : titulo;
+      }
+    } catch (_) {
+      return '';
+    }
+    return '';
+  }
+
+  Future<String> sendMessage(
+    String userMessage,
+    List<Map<String, String>> chatHistory,
+  ) async {
     final String? apiKey = dotenv.env['GROQ_API_KEY'];
 
     if (apiKey == null) {

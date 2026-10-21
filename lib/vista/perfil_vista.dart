@@ -92,18 +92,28 @@ class _PerfilVistaState extends State<PerfilVista> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _buildAvatar(),
+              EntryFade(
+                scaleFrom: 0.9,
+                offset: 0,
+                child: _buildAvatar(),
+              ),
               const SizedBox(height: 14),
-              const GradientText(
-                'Tu perfil',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.3,
+              const EntryFade(
+                delay: Duration(milliseconds: 120),
+                child: GradientText(
+                  'Tu perfil',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.3,
+                  ),
                 ),
               ),
               const SizedBox(height: 22),
-              TechCard(
+              EntryFade(
+                delay: const Duration(milliseconds: 200),
+                offset: 28,
+                child: TechCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -161,6 +171,7 @@ class _PerfilVistaState extends State<PerfilVista> {
                   ],
                 ),
               ),
+            ),
             ],
           ),
         ),

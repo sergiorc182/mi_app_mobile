@@ -46,3 +46,7 @@ app.*.map.json
 
 # Environment variables
 .env
+
+# Firebase service account keys (nunca subir al repo)
+*serviceAccount*.json
+serviceAccountKey.json

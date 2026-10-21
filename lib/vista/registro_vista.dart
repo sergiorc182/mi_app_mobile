@@ -69,22 +69,30 @@ class _RegistroVistaState extends State<RegistroVista> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const GradientText(
-                'Completá tus datos',
-                style: TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.4,
+              const EntryFade(
+                child: GradientText(
+                  'Completá tus datos',
+                  style: TextStyle(
+                    fontSize: 26,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.4,
+                  ),
                 ),
               ),
               const SizedBox(height: 8),
-              const Text(
-                'Creá tu cuenta para comenzar a usar el asistente.',
-                style: AppTextStyles.body,
-                textAlign: TextAlign.center,
+              const EntryFade(
+                delay: Duration(milliseconds: 90),
+                child: Text(
+                  'Creá tu cuenta para comenzar a usar el asistente.',
+                  style: AppTextStyles.body,
+                  textAlign: TextAlign.center,
+                ),
               ),
               const SizedBox(height: 24),
-              TechCard(
+              EntryFade(
+                delay: const Duration(milliseconds: 180),
+                offset: 28,
+                child: TechCard(
                 child: Column(
                   children: [
                     TechTextField(
@@ -151,6 +159,7 @@ class _RegistroVistaState extends State<RegistroVista> {
                   ],
                 ),
               ),
+            ),
             ],
           ),
         ),

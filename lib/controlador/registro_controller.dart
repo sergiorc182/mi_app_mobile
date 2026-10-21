@@ -59,6 +59,7 @@ class RegistroController {
         return const RegistroResultado(mensaje: 'No se pudo crear la cuenta. Intentá nuevamente.');
       }
 
+      final ahora = DateTime.now();
       final usuario = Usuario(
         id: uid,
         nombre: nombreTrim,
@@ -66,7 +67,9 @@ class RegistroController {
         dni: dniTrim,
         email: emailTrim,
         fotoPerfil: '',
-        createdAt: DateTime.now(),
+        createdAt: ahora,
+        updatedAt: ahora,
+        activo: true,
       );
 
       await _firestoreService.crearUsuario(usuario);

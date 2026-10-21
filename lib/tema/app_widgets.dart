@@ -4,6 +4,126 @@ import 'app_colors.dart';
 import 'app_gradients.dart';
 import 'app_text_styles.dart';
 
+/// Animación de entrada suave: fade + desplazamiento vertical.
+///
+/// Pensada para animar elementos al montarse una pantalla. Con [delay] se
+/// logra un efecto escalonado (stagger) cuando se anidan varios.
+class EntryFade extends StatefulWidget {
+  const EntryFade({
+    super.key,
+    required this.child,
+    this.delay = Duration.zero,
+    this.duration = const Duration(milliseconds: 480),
+    this.offset = 20,
+    this.scaleFrom = 1,
+  });
+
+  final Widget child;
+  final Duration delay;
+  final Duration duration;
+
+  /// Desplazamiento vertical inicial (px) que se resuelve al aparecer.
+  final double offset;
+
+  /// Escala inicial. 1 = sin zoom; valores < 1 dan un leve zoom-in.
+  final double scaleFrom;
+
+  @override
+  State<EntryFade> createState() => _EntryFadeState();
+}
+
+class _EntryFadeState extends State<EntryFade>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _total = widget.delay + widget.duration;
+    _begin = _total.inMilliseconds == 0
+        ? 0.0
+        : widget.delay.inMilliseconds / _total.inMilliseconds;
+    _controller = AnimationController(vsync: this, duration: _total)
+      ..forward();
+  }
+
+  late final Duration _total;
+  late final double _begin;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final curve = CurvedAnimation(
+      parent: _controller,
+      curve: Interval(_begin, 1, curve: Curves.easeOutCubic),
+    );
+    return AnimatedBuilder(
+      animation: curve,
+      builder: (context, child) {
+        final value = curve.value;
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, (1 - value) * widget.offset),
+            child: Transform.scale(
+              scale: widget.scaleFrom + (1 - widget.scaleFrom) * value,
+              child: child,
+            ),
+          ),
+        );
+      },
+      child: widget.child,
+    );
+  }
+}
+
+/// Apila varios hijos animándolos en cascada vertical.
+class StaggeredColumn extends StatelessWidget {
+  const StaggeredColumn({
+    super.key,
+    required this.children,
+    this.mainAxisAlignment = MainAxisAlignment.start,
+    this.crossAxisAlignment = CrossAxisAlignment.center,
+    this.mainAxisSize = MainAxisSize.max,
+    this.step = const Duration(milliseconds: 90),
+    this.start = const Duration(milliseconds: 80),
+    this.itemDuration = const Duration(milliseconds: 460),
+    this.offset = 22,
+  });
+
+  final List<Widget> children;
+  final MainAxisAlignment mainAxisAlignment;
+  final CrossAxisAlignment crossAxisAlignment;
+  final MainAxisSize mainAxisSize;
+  final Duration step;
+  final Duration start;
+  final Duration itemDuration;
+  final double offset;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisAlignment: mainAxisAlignment,
+      crossAxisAlignment: crossAxisAlignment,
+      mainAxisSize: mainAxisSize,
+      children: [
+        for (var i = 0; i < children.length; i++)
+          EntryFade(
+            delay: start + step * i,
+            duration: itemDuration,
+            offset: offset,
+            child: children[i],
+          ),
+      ],
+    );
+  }
+}
+
 /// Fondo tecnológico: gradientes radiales sutiles, glow difusos y una
 /// cuadrícula tenue. Pintado con [CustomPainter] para no impactar el
 /// rendimiento.

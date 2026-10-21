@@ -25,6 +25,7 @@ dependencies:
 
   # Environment
   flutter_dotenv: ^5.2.1
+  syncfusion_flutter_pdf: ^35.1.41
 
 dev_dependencies:
   flutter_test:
@@ -38,6 +39,8 @@ flutter:
   assets:
     - .env
     - assets/catalogo.json
+    - assets/info.pdf
+    - assets/icons/app_icon.png
 
 flutter_launcher_icons:
   android: true

@@ -60,32 +60,58 @@ class _SplashVistaState extends State<SplashVista> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const AppLogo(size: 88),
+              const EntryFade(
+                scaleFrom: 0.85,
+                offset: 0,
+                duration: Duration(milliseconds: 620),
+                child: AppLogo(size: 88),
+              ),
               const SizedBox(height: 24),
-              const GradientText(
-                'VendedorVirtual',
-                style: TextStyle(
-                  fontSize: 30,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.5,
+              const EntryFade(
+                delay: Duration(milliseconds: 140),
+                child: GradientText(
+                  'VendedorVirtual',
+                  style: TextStyle(
+                    fontSize: 30,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                  ),
                 ),
               ),
               const SizedBox(height: 8),
-              const Text(
-                'Asistente de compras inteligente',
-                style: AppTextStyles.body,
-              ),
-              const SizedBox(height: 40),
-              const SizedBox(
-                width: 26,
-                height: 26,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.4,
-                  color: AppColors.violetSoft,
+              const EntryFade(
+                delay: Duration(milliseconds: 240),
+                child: Text(
+                  'Asistente de compras inteligente',
+                  style: AppTextStyles.body,
                 ),
               ),
-              const SizedBox(height: 16),
-              Text(_estado, style: AppTextStyles.captionMuted),
+              const SizedBox(height: 40),
+              EntryFade(
+                delay: const Duration(milliseconds: 340),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(
+                      width: 26,
+                      height: 26,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.4,
+                        color: AppColors.violetSoft,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 260),
+                      child: Text(
+                        _estado,
+                        key: ValueKey(_estado),
+                        style: AppTextStyles.captionMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
         ),

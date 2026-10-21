@@ -46,24 +46,37 @@ class _RecuperarPasswordVistaState extends State<RecuperarPasswordVista> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const AppLogo(size: 64, icon: Icons.lock_reset_rounded),
+              const EntryFade(
+                scaleFrom: 0.9,
+                offset: 0,
+                child: AppLogo(size: 64, icon: Icons.lock_reset_rounded),
+              ),
               const SizedBox(height: 18),
-              const GradientText(
-                'Restablecé tu acceso',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.3,
+              const EntryFade(
+                delay: Duration(milliseconds: 120),
+                child: GradientText(
+                  'Restablecé tu acceso',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.3,
+                  ),
                 ),
               ),
               const SizedBox(height: 8),
-              const Text(
-                'Ingresá tu email y te enviaremos las instrucciones.',
-                style: AppTextStyles.body,
-                textAlign: TextAlign.center,
+              const EntryFade(
+                delay: Duration(milliseconds: 200),
+                child: Text(
+                  'Ingresá tu email y te enviaremos las instrucciones.',
+                  style: AppTextStyles.body,
+                  textAlign: TextAlign.center,
+                ),
               ),
               const SizedBox(height: 24),
-              TechCard(
+              EntryFade(
+                delay: const Duration(milliseconds: 280),
+                offset: 28,
+                child: TechCard(
                 child: Column(
                   children: [
                     TechTextField(
@@ -101,6 +114,7 @@ class _RecuperarPasswordVistaState extends State<RecuperarPasswordVista> {
                   ],
                 ),
               ),
+            ),
             ],
           ),
         ),

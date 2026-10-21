@@ -2,26 +2,30 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Mensaje {
   final String id;
-  final String conversacionId;
   final String autor;
   final String mensaje;
-  final DateTime fecha;
+  final DateTime createdAt;
+  final String tipo;
+  final String? productoId;
 
   Mensaje({
     required this.id,
-    required this.conversacionId,
     required this.autor,
     required this.mensaje,
-    required this.fecha,
+    required this.createdAt,
+    required this.tipo,
+    this.productoId,
   });
 
   factory Mensaje.fromFirestore(Map<String, dynamic> data, String id) {
     return Mensaje(
       id: id,
-      conversacionId: '',
       autor: data['autor']?.toString() ?? 'user',
       mensaje: data['mensaje']?.toString() ?? '',
-      fecha: (data['fecha'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdAt:
+          (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      tipo: data['tipo']?.toString() ?? 'texto',
+      productoId: data['productoId']?.toString(),
     );
   }
 
@@ -29,7 +33,9 @@ class Mensaje {
     return {
       'autor': autor,
       'mensaje': mensaje,
-      'fecha': Timestamp.fromDate(fecha),
+      'createdAt': Timestamp.fromDate(createdAt),
+      'tipo': tipo,
+      'productoId': productoId,
     };
   }
 }

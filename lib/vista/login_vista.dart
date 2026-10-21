@@ -60,18 +60,29 @@ class _LoginVistaState extends State<LoginVista> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const AppLogo(size: 72),
+              const EntryFade(
+                scaleFrom: 0.9,
+                offset: 0,
+                duration: Duration(milliseconds: 520),
+                child: AppLogo(size: 72),
+              ),
               const SizedBox(height: 16),
-              const GradientText(
-                'VendedorVirtual',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.3,
+              const EntryFade(
+                delay: Duration(milliseconds: 120),
+                child: GradientText(
+                  'VendedorVirtual',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.3,
+                  ),
                 ),
               ),
               const SizedBox(height: 28),
-              TechCard(
+              EntryFade(
+                delay: const Duration(milliseconds: 220),
+                offset: 28,
+                child: TechCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -184,6 +195,7 @@ class _LoginVistaState extends State<LoginVista> {
                   ],
                 ),
               ),
+            ),
             ],
           ),
         ),

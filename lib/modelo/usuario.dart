@@ -8,6 +8,8 @@ class Usuario {
   final String email;
   final String fotoPerfil;
   final DateTime createdAt;
+  final DateTime updatedAt;
+  final bool activo;
 
   Usuario({
     required this.id,
@@ -17,6 +19,8 @@ class Usuario {
     required this.email,
     required this.fotoPerfil,
     required this.createdAt,
+    required this.updatedAt,
+    required this.activo,
   });
 
   factory Usuario.fromFirestore(Map<String, dynamic> data, String docId) {
@@ -28,6 +32,8 @@ class Usuario {
       email: data['email']?.toString() ?? '',
       fotoPerfil: data['fotoPerfil']?.toString() ?? '',
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      activo: data['activo'] as bool? ?? true,
     );
   }
 
@@ -39,6 +45,8 @@ class Usuario {
       'email': email,
       'fotoPerfil': fotoPerfil,
       'createdAt': Timestamp.fromDate(createdAt),
+      'updatedAt': Timestamp.fromDate(updatedAt),
+      'activo': activo,
     };
   }
 }
