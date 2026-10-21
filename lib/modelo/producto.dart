@@ -36,17 +36,26 @@ class Producto {
   factory Producto.fromFirestore(Map<String, dynamic> data, String id) {
     return Producto(
       id: id,
-      nombre: data['nombre']?.toString() ?? '',
-      descripcion: data['descripcion']?.toString() ?? '',
+      nombre: data['nombre']?.toString() ?? data['modelo']?.toString() ?? '',
+      descripcion: data['descripcion']?.toString() ??
+          data['especificacion_clave']?.toString() ??
+          data['especificacionClave']?.toString() ??
+          '',
       marca: data['marca']?.toString() ?? '',
-      categoriaId: data['categoriaId']?.toString() ?? '',
-      precio: (data['precio'] as num?)?.toDouble() ?? 0,
+      categoriaId: data['categoriaId']?.toString() ??
+          data['categoria']?.toString() ??
+          '',
+      precio: (data['precio'] as num?)?.toDouble() ??
+          (data['precio_usd'] as num?)?.toDouble() ??
+          0,
       moneda: data['moneda']?.toString() ?? 'USD',
-      stock: (data['stock'] as num?)?.toInt() ?? 0,
+      stock: (data['stock'] as num?)?.toInt() ?? 1,
       activo: data['activo'] as bool? ?? true,
       sku: data['sku']?.toString() ?? '',
       imagenUrl: data['imagenUrl']?.toString() ?? '',
-      urlExterna: data['urlExterna']?.toString() ?? '',
+      urlExterna: data['urlExterna']?.toString() ??
+          data['enlace_compra']?.toString() ??
+          '',
       createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
     );
@@ -54,12 +63,13 @@ class Producto {
 
   factory Producto.fromJson(Map<String, dynamic> json) {
     return Producto(
-      id: json['id'] as String,
+      id: json['id'] as String? ?? '',
       nombre: json['nombre'] as String? ??
           json['modelo'] as String? ??
           '',
       descripcion: json['descripcion'] as String? ??
           json['especificacion_clave'] as String? ??
+          json['especificacionClave'] as String? ??
           '',
       marca: json['marca'] as String? ?? '',
       categoriaId: json['categoriaId'] as String? ??
@@ -95,6 +105,19 @@ class Producto {
       'createdAt': createdAt != null ? Timestamp.fromDate(createdAt!) : null,
       'updatedAt': updatedAt != null ? Timestamp.fromDate(updatedAt!) : null,
     };
+  }
+
+  String get modelo => nombre;
+
+  String get categoria => _nombreLegible(categoriaId);
+
+  static String _nombreLegible(String valor) {
+    if (valor.isEmpty) return '';
+    return valor
+        .replaceAll('_', ' ')
+        .split(' ')
+        .map((p) => p.isEmpty ? p : '${p[0].toUpperCase()}${p.substring(1)}')
+        .join(' ');
   }
 
   String get presentacion =>

@@ -24,7 +24,25 @@ class LoginController {
       final uid = cred.user?.uid;
       if (uid == null) return null;
 
-      final usuario = await _firestoreService.obtenerUsuario(uid);
+      Usuario? usuario;
+      try {
+        usuario = await _firestoreService.obtenerUsuario(uid);
+      } catch (e) {
+        log('Aviso al obtener usuario de Firestore: $e');
+      }
+
+      usuario ??= Usuario(
+        id: uid,
+        nombre: emailTrim.split('@').first,
+        apellido: '',
+        dni: '',
+        email: emailTrim,
+        fotoPerfil: '',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        activo: true,
+      );
+
       usuarioActual = usuario;
       return usuario;
     } catch (e, stack) {
@@ -37,7 +55,25 @@ class LoginController {
     final user = _authService.currentUser;
     if (user == null) return null;
 
-    final usuario = await _firestoreService.obtenerUsuario(user.uid);
+    Usuario? usuario;
+    try {
+      usuario = await _firestoreService.obtenerUsuario(user.uid);
+    } catch (e) {
+      log('Aviso al obtener usuario actual de Firestore: $e');
+    }
+
+    usuario ??= Usuario(
+      id: user.uid,
+      nombre: (user.email ?? 'Usuario').split('@').first,
+      apellido: '',
+      dni: '',
+      email: user.email ?? '',
+      fotoPerfil: '',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+      activo: true,
+    );
+
     usuarioActual = usuario;
     return usuario;
   }

@@ -1,36 +1,52 @@
-= VENDEDORVIRTUAL - INTEGRACION CON TELEGRAM ===========
+========================================================================
+VENDEDORVIRTUAL - INTEGRACIÓN CON TELEGRAM Y MERCADO PAGO
+========================================================================
 
-1) CREAR EL BOT (una sola vez, desde cualquier dispositivo)
-   - Abri Telegram y busca: @BotFather
-   - Escribi: /newbot
-   - Nombre que quieras: VendedorVirtual
-   - Usuario (debe terminar en "bot"): VendedorVirtualBot
-   - BotFather te da un TOKEN tipo: 123456:ABC-DEF...
-     GUARDALO, es la llave del bot.
+1) CONFIGURACIÓN DE TELEGRAM (si aún no tenés el token)
+   - Abrí Telegram y buscá: @BotFather
+   - Escribí: /newbot
+   - Nombre: VendedorVirtual
+   - Usuario (debe terminar en "bot"): VendedorVirtualBot (o el que esté disponible)
+   - BotFather te dará un TOKEN tipo: 123456789:ABCdefGhIjkLmNoPqRsTuVwXyZ
 
-2) PEGAR EL TOKEN EN LA PC
-   - Abri el archivo .env (esta en la raiz del proyecto mi_app_mobile)
-   - Busca la linea: TELEGRAM_BOT_TOKEN=
-   - Pegalo ahi mismo, sin espacios:
-        TELEGRAM_BOT_TOKEN=123456:ABC-DEF...
-   - Guarda el archivo.
+2) GUARDAR EL TOKEN EN .env
+   - Abrí el archivo .env (en la raíz del proyecto)
+   - Pegá tu token en la línea:
+     TELEGRAM_BOT_TOKEN=tu_token_aqui
 
-3) CORRER EL BOT (cada vez que quieras demo)
-   - Abri una terminal en la carpeta del proyecto:
-        cd "C:\Users\Usuario\Desktop\proyecto seminario\mi_app_mobile"
-   - Ejecuta:
-        python telegram_bot\bot.py
-   - Deja la ventana abierta (el bot funciona mientras este corriendo).
-     Si da error al iniciar, es porque el token en .env esta incompleto.
+3) INICIAR EL BOT
+   - Abrí una terminal PowerShell en esta carpeta y ejecutá:
+     python telegram_bot\bot.py
 
-4) USARLO
-   - En Telegram busca tu bot (ej: @VendedorVirtualBot) y toca Start.
-   - Escribile directamente: "aire acondicionado", "telefono", etc.
-   - Ultimo comando: /nuevo  -> empieza conversacion nueva.
+4) CÓMO PROBAR LA VENTA Y EL PAGO
+   a) Abrí tu bot en Telegram y escribí /start o preguntá por un producto:
+      Ejemplo: "Hola, busco un aire acondicionado" o "qué celulares tenés?"
+   b) La IA te recomendará los productos del catálogo y mostrará botones:
+      [💳 Comprar Philco PHS32 ($550 USD)]
+   c) Al hacer clic en comprar (o al escribir "lo quiero comprar"):
+      - El bot genera automáticamente una preferencia en Mercado Pago.
+      - Opción A: Botón "💳 Pagar con Mercado Pago" que abre el Checkout Sandbox.
+      - Opción B: Botón "🤝 Coordinar entrega y pago en efectivo".
+   d) Cierre "de palabra":
+      Si elegís coordinar o pagás en efectivo, el bot te pide tus datos de
+      entrega        y emite un Ticket de Pedido Confirmado formal (#VV-XXXX).
 
-NOTAS
-   - Usa la MISMA key de Groq de la app y el mismo catalogo.json.
-   - Sin busqueda web; respuestas de max 500 tokens (modelo qwen/qwen3.8-27b).
-   - Un mismo bot solo puede correr en UN lugar a la vez.
-   - El token de Telegram no se sube a git (esta en .env, ignorado).
+5) VARIABLES DE ENTORNO QUE USA EL BOT
+   - GROQ_API_KEY, TELEGRAM_BOT_TOKEN  (obligatorias para arrancar)
+   - MERCADOPAGO_ACCESS_TOKEN           (si no está, el bot ofrece solo pago en efectivo)
+   - USD_A_ARS_COTIZACION              (default 1250)
+   - FIREBASE_API_KEY / FIREBASE_PROJECT_ID / FIREBASE_ADMIN_EMAIL /
+     FIREBASE_ADMIN_PASSWORD            (opcionales: leen el catálogo en vivo
+     desde Firestore; sin ellos usa assets/catalogo.json)
+   Copiá .env.example a .env y completá los valores. NO subas el .env a git.
+
+6) CATÁLOGO EN FIREBASE
+   - El bot y la app leen la colección 'productos' con el esquema nuevo:
+     nombre, descripcion, marca, categoriaId, precio, moneda, stock, activo,
+     sku, imagenUrl, urlExterna.
+   - Para sembrarlo:  python telegram_bot\seed_firestore.py
+     (necesita las variables FIREBASE_* del punto 5)
+   - Para migrar datos viejos:  python tools\migrar_firestore.py --key serviceAccountKey.json
+   - El bot también responde con el contenido de assets/info.pdf.
+
 ========================================================================

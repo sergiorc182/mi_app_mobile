@@ -72,7 +72,12 @@ class RegistroController {
         activo: true,
       );
 
-      await _firestoreService.crearUsuario(usuario);
+      try {
+        await _firestoreService.crearUsuario(usuario);
+      } catch (e) {
+        log('Aviso al guardar perfil en Firestore: $e');
+      }
+
       return RegistroResultado(usuario: usuario);
     } on FirebaseAuthException catch (e, stack) {
       log('Error al registrar usuario: ${e.code} - ${e.message}', stackTrace: stack);
