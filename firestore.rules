@@ -1,0 +1,144 @@
+rules_version = '2';
+
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: users
+// Document ID: {uid} (Firebase Auth UID)
+// Fields:
+//   - nombre: string (optional)
+//   - apellido: string (optional)
+//   - dni: string (optional)
+//   - email: string (optional)
+//   - fotoPerfil: string (optional)
+//   - createdAt: timestamp (optional)
+//
+// Subcollection: users/{uid}/conversaciones
+// Document ID: {conversacionId}
+// Fields:
+//   - titulo: string
+//   - createdAt: timestamp
+//
+// Subcollection: users/{uid}/conversaciones/{conversacionId}/mensajes
+// Document ID: {mensajeId}
+// Fields:
+//   - autor: string ('user' | 'bot')
+//   - mensaje: string
+//   - fecha: timestamp
+//
+// Collection: productos
+// Document ID: {productoId}
+// Fields:
+//   - id: string (optional, matching document identifier, max 100 chars)
+//   - categoria: string (required, 1-100 chars)
+//   - marca: string (required, 1-100 chars)
+//   - modelo: string (required, 1-150 chars)
+//   - especificacion_clave: string (optional, max 1000 chars)
+//   - especificacionClave: string (optional alternative, max 1000 chars)
+//   - precio_usd: number (required if precioUSD absent, >= 0 and <= 1,000,000,000)
+//   - precioUSD: number (optional alternative, >= 0 and <= 1,000,000,000)
+//   - enlace_compra: string (optional, max 1000 chars)
+//   - enlaceCompra: string (optional alternative, max 1000 chars)
+//   - descripcion: string (optional, max 5000 chars)
+//   - imagen: string (optional, max 2000 chars)
+//   - stock: number (optional, >= 0 and <= 1,000,000)
+//   - createdAt: timestamp (optional)
+//   - updatedAt: timestamp (optional)
+//
+// ===============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isNumber(val) {
+      return val is int || val is float;
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidProducto(data) {
+      return data.keys().hasOnly([
+        'id',
+        'categoria',
+        'marca',
+        'modelo',
+        'especificacion_clave',
+        'especificacionClave',
+        'precio_usd',
+        'precioUSD',
+        'enlace_compra',
+        'enlaceCompra',
+        'descripcion',
+        'imagen',
+        'stock',
+        'createdAt',
+        'updatedAt'
+      ]) &&
+      // Campos requeridos principales
+      ('categoria' in data) && data.categoria is string &&
+      data.categoria.size() > 0 && data.categoria.size() <= 100 &&
+      ('marca' in data) && data.marca is string &&
+      data.marca.size() > 0 && data.marca.size() <= 100 &&
+      ('modelo' in data) && data.modelo is string &&
+      data.modelo.size() > 0 && data.modelo.size() <= 150 &&
+      // Al menos un campo de precio válido (>= 0)
+      (
+        (('precio_usd' in data) && isNumber(data.precio_usd) && data.precio_usd >= 0 && data.precio_usd <= 1000000000) ||
+        (('precioUSD' in data) && isNumber(data.precioUSD) && data.precioUSD >= 0 && data.precioUSD <= 1000000000)
+      ) &&
+      // Campos opcionales con límites de tamaño
+      (!('id' in data) || (data.id is string && data.id.size() <= 100)) &&
+      (!('especificacion_clave' in data) || (data.especificacion_clave is string && data.especificacion_clave.size() <= 1000)) &&
+      (!('especificacionClave' in data) || (data.especificacionClave is string && data.especificacionClave.size() <= 1000)) &&
+      (!('enlace_compra' in data) || (data.enlace_compra is string && data.enlace_compra.size() <= 1000)) &&
+      (!('enlaceCompra' in data) || (data.enlaceCompra is string && data.enlaceCompra.size() <= 1000)) &&
+      (!('descripcion' in data) || (data.descripcion is string && data.descripcion.size() <= 5000)) &&
+      (!('imagen' in data) || (data.imagen is string && data.imagen.size() <= 2000)) &&
+      (!('stock' in data) || (isNumber(data.stock) && data.stock >= 0 && data.stock <= 1000000)) &&
+      (!('createdAt' in data) || data.createdAt is timestamp) &&
+      (!('updatedAt' in data) || data.updatedAt is timestamp);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    // Solo el usuario dueño puede leer/escribir su propio documento
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+
+      // Subcolección de conversaciones del usuario
+      match /conversaciones/{conversacionId} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+
+        // Subcolección de mensajes de cada conversación
+        match /mensajes/{mensajeId} {
+          allow read, write: if request.auth != null && request.auth.uid == uid;
+        }
+      }
+    }
+
+    // Catálogo de productos:
+    // - Lectura pública (get, list) para todos (autenticados, invitados, bot)
+    // - Creación, actualización y borrado solo para usuarios autenticados con validación de esquema
+    match /productos/{productoId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && isValidProducto(request.resource.data);
+      allow update: if isAuthenticated() && isValidProducto(request.resource.data) &&
+        (!('id' in resource.data) || !('id' in request.resource.data) || request.resource.data.id == resource.data.id) &&
+        (!('createdAt' in resource.data) || !('createdAt' in request.resource.data) || request.resource.data.createdAt == resource.data.createdAt);
+      allow delete: if isAuthenticated();
+    }
+  }
+}

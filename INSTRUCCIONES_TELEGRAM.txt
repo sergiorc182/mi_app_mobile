@@ -1,0 +1,34 @@
+========================================================================
+VENDEDORVIRTUAL - INTEGRACIÓN CON TELEGRAM Y MERCADO PAGO
+========================================================================
+
+1) CONFIGURACIÓN DE TELEGRAM (si aún no tenés el token)
+   - Abrí Telegram y buscá: @BotFather
+   - Escribí: /newbot
+   - Nombre: VendedorVirtual
+   - Usuario (debe terminar en "bot"): VendedorVirtualBot (o el que esté disponible)
+   - BotFather te dará un TOKEN tipo: 123456789:ABCdefGhIjkLmNoPqRsTuVwXyZ
+
+2) GUARDAR EL TOKEN EN .env
+   - Abrí el archivo .env (en la raíz del proyecto)
+   - Pegá tu token en la línea:
+     TELEGRAM_BOT_TOKEN=tu_token_aqui
+
+3) INICIAR EL BOT
+   - Abrí una terminal PowerShell en esta carpeta y ejecutá:
+     python telegram_bot\bot.py
+
+4) CÓMO PROBAR LA VENTA Y EL PAGO
+   a) Abrí tu bot en Telegram y escribí /start o preguntá por un producto:
+      Ejemplo: "Hola, busco un aire acondicionado" o "qué celulares tenés?"
+   b) La IA te recomendará los productos del catálogo y mostrará botones:
+      [💳 Comprar Philco PHS32 ($550 USD)]
+   c) Al hacer clic en comprar (o al escribir "lo quiero comprar"):
+      - El bot genera automáticamente una preferencia en Mercado Pago.
+      - Opción A: Botón "💳 Pagar con Mercado Pago" que abre el Checkout Sandbox.
+      - Opción B: Botón "🤝 Coordinar entrega y pago en efectivo".
+   d) Cierre "de palabra":
+      Si elegís coordinar o pagás en efectivo, el bot te pide tus datos de
+      entrega y emite un Ticket de Pedido Confirmado formal (#VV-XXXX).
+
+========================================================================
