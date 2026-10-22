@@ -11,6 +11,7 @@ class ProductoService {
   FirebaseFirestore get _db => FirebaseFirestore.instance;
 
   List<Producto> _catalogo = [];
+  List<String> _textoNormalizado = [];
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _subscription;
   final _catalogoStreamController = StreamController<List<Producto>>.broadcast();
 
@@ -18,6 +19,17 @@ class ProductoService {
 
   void usarCatalogo(List<Producto> productos) {
     _catalogo = productos;
+    _reindexar();
+  }
+
+  /// Precalcula el texto normalizado de cada producto para que la búsqueda
+  /// no normalice strings en cada consulta.
+  void _reindexar() {
+    _textoNormalizado = _catalogo
+        .map((p) => normalizarTexto(
+              '${p.categoriaId} ${p.marca} ${p.nombre} ${p.descripcion}',
+            ))
+        .toList();
   }
 
   List<Producto> get catalogo => List.unmodifiable(_catalogo);
@@ -25,13 +37,42 @@ class ProductoService {
   List<String> get categorias =>
       _catalogo.map((p) => p.categoria).where((c) => c.isNotEmpty).toSet().toList();
 
-  /// Carga el catálogo: primero local para disponibilidad inmediata,
-  /// luego inicia la escucha en tiempo real de Cloud Firestore.
-  Future<void> cargarCatalogo() async {
+  /// Carga el catálogo: primero el bundle local para disponibilidad inmediata,
+  /// después una consulta acotada a Firestore (solo productos activos).
+  /// No se mantiene una escucha permanente de toda la colección: el catálogo
+  /// queda en memoria y las búsquedas del chat no lo vuelven a bajar entero.
+  /// [consultarFirestore] en false evita una segunda ida a la red cuando ya
+  /// sabemos que la consulta falló o vino vacía.
+  Future<void> cargarCatalogo({
+    int limite = 50,
+    bool consultarFirestore = true,
+  }) async {
     if (_catalogo.isEmpty) {
       await _cargarLocal();
     }
-    iniciarEscuchaTiempoReal();
+    if (consultarFirestore) {
+      await _cargarDesdeFirestore(limite: limite);
+    }
+  }
+
+  Future<void> _cargarDesdeFirestore({int limite = 50}) async {
+    try {
+      final snapshot = await _db
+          .collection(productosCollection)
+          .where('activo', isEqualTo: true)
+          .limit(limite)
+          .get();
+      if (snapshot.docs.isEmpty) return;
+      _catalogo = snapshot.docs
+          .map((doc) => Producto.fromFirestore(doc.data(), doc.id))
+          .where((p) => p.nombre.isNotEmpty || p.marca.isNotEmpty)
+          .toList();
+      _reindexar();
+      _catalogoStreamController.add(_catalogo);
+      debugPrint('Catálogo cargado desde Firestore: ${_catalogo.length} productos');
+    } catch (e) {
+      debugPrint('No se pudo cargar el catálogo desde Firestore: $e');
+    }
   }
 
   Future<void> _cargarLocal() async {
@@ -39,13 +80,16 @@ class ProductoService {
       final json = await rootBundle.loadString('assets/catalogo.json');
       final List<dynamic> data = jsonDecode(json);
       _catalogo = data.map((e) => Producto.fromJson(e as Map<String, dynamic>)).toList();
+      _reindexar();
       _catalogoStreamController.add(_catalogo);
     } catch (e) {
       debugPrint('Error cargando catálogo local: $e');
     }
   }
 
-  /// Escucha en tiempo real los cambios en la colección 'productos' de Firestore
+  /// Escucha en tiempo real los cambios en la colección 'productos' de Firestore.
+  /// Es opcional: la app no la activa por defecto para no bajar el catálogo
+  /// completo en cada arranque.
   void iniciarEscuchaTiempoReal() {
     _subscription?.cancel();
     try {
@@ -56,14 +100,9 @@ class ProductoService {
                 .map((doc) => Producto.fromFirestore(doc.data(), doc.id))
                 .where((p) => p.marca.isNotEmpty || p.nombre.isNotEmpty)
                 .toList();
+            _reindexar();
             _catalogoStreamController.add(_catalogo);
             debugPrint('Catálogo actualizado en tiempo real: ${_catalogo.length} productos');
-          } else {
-            // Si la colección está vacía en Firestore, intentamos sembrar el catálogo inicial
-            sincronizarCatalogoAFirestore().catchError((e) {
-              debugPrint('No se pudo auto-sembrar productos en Firestore: $e');
-              return 0;
-            });
           }
         },
         onError: (error) {
@@ -119,12 +158,10 @@ class ProductoService {
     if (terminos.isEmpty) return [];
 
     final puntajes = <MapEntry<Producto, int>>[];
-    for (final producto in _catalogo) {
+    for (var i = 0; i < _catalogo.length; i++) {
+      final producto = _catalogo[i];
       if (!producto.activo) continue;
-      final campos = normalizarTexto(
-        '${producto.categoriaId} ${producto.marca} ${producto.nombre} '
-        '${producto.descripcion}',
-      );
+      final campos = i < _textoNormalizado.length ? _textoNormalizado[i] : '';
       var score = 0;
       for (final termino in terminos) {
         if (campos.contains(termino)) score += 1;

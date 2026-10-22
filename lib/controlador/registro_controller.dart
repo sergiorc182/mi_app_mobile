@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../modelo/usuario.dart';
 import '../modelo/firebase/auth.dart';
 import '../modelo/firebase/firestore.dart';
+import 'login_controller.dart';
 
 class RegistroResultado {
   const RegistroResultado({this.usuario, this.mensaje});
@@ -77,6 +78,8 @@ class RegistroController {
       } catch (e) {
         log('Aviso al guardar perfil en Firestore: $e');
       }
+
+      LoginController.instance.usuarioActual = usuario;
 
       return RegistroResultado(usuario: usuario);
     } on FirebaseAuthException catch (e, stack) {

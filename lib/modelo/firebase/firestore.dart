@@ -37,6 +37,14 @@ class FirestoreService {
     return Usuario.fromFirestore(doc.data() ?? {}, doc.id);
   }
 
+  /// Datos crudos del perfil: sirve para detectar campos que faltan
+  /// en documentos creados con el esquema anterior.
+  Future<Map<String, dynamic>?> obtenerUsuarioDatos(String uid) async {
+    final doc = await _db.collection(usuariosCollection).doc(uid).get();
+    if (!doc.exists) return null;
+    return doc.data() ?? {};
+  }
+
   Future<void> actualizarUsuario(String uid, Map<String, dynamic> data) async {
     await _db.collection(usuariosCollection).doc(uid).update({
       ...data,
@@ -46,12 +54,15 @@ class FirestoreService {
 
   // ─── Productos ───
 
-  Future<List<Producto>> obtenerProductos({bool soloActivos = true}) async {
+  Future<List<Producto>> obtenerProductos({
+    bool soloActivos = true,
+    int limite = 50,
+  }) async {
     Query<Map<String, dynamic>> query = _db.collection(productosCollection);
     if (soloActivos) {
       query = query.where('activo', isEqualTo: true);
     }
-    final snapshot = await query.get();
+    final snapshot = await query.limit(limite).get();
     return snapshot.docs
         .map((doc) => Producto.fromFirestore(doc.data(), doc.id))
         .toList();
@@ -126,10 +137,12 @@ class FirestoreService {
   CollectionReference<Map<String, dynamic>> get _conversacionesRef =>
       _db.collection(conversacionesCollection);
 
-  Future<List<Conversacion>> obtenerConversaciones(String uid) async {
+  Future<List<Conversacion>> obtenerConversaciones(String uid,
+      {int limite = 50}) async {
     final snapshot = await _conversacionesRef
         .where('usuarioId', isEqualTo: uid)
         .orderBy('updatedAt', descending: true)
+        .limit(limite)
         .get();
 
     return snapshot.docs
@@ -181,18 +194,25 @@ class FirestoreService {
     return _conversacionesRef.doc(conversacionId).collection('mensajes');
   }
 
+  /// Devuelve los últimos [limite] mensajes (los consulta del más reciente al
+  /// más viejo, pero los devuelve en orden cronológico ascendente).
+  /// [antesDe] actúa como cursor: trae los mensajes anteriores a esa fecha.
   Future<List<Mensaje>> obtenerMensajes(
     String conversacionId, {
-    int limite = 50,
+    int limite = 20,
+    DateTime? antesDe,
   }) async {
-    final snapshot = await _mensajesRef(conversacionId)
-        .orderBy('createdAt', descending: false)
-        .limit(limite)
-        .get();
+    Query<Map<String, dynamic>> query =
+        _mensajesRef(conversacionId).orderBy('createdAt', descending: true);
+    if (antesDe != null) {
+      query = query.endBefore([Timestamp.fromDate(antesDe)]);
+    }
+    final snapshot = await query.limit(limite).get();
 
-    return snapshot.docs
+    final mensajes = snapshot.docs
         .map((doc) => Mensaje.fromFirestore(doc.data(), doc.id))
         .toList();
+    return mensajes.reversed.toList();
   }
 
   Future<void> guardarMensaje(String conversacionId, Mensaje mensaje) async {
@@ -255,11 +275,12 @@ class FirestoreService {
     return docRef.id;
   }
 
-  Future<List<Pedido>> obtenerPedidos(String uid) async {
+  Future<List<Pedido>> obtenerPedidos(String uid, {int limite = 50}) async {
     final snapshot = await _db
         .collection(pedidosCollection)
         .where('usuarioId', isEqualTo: uid)
         .orderBy('createdAt', descending: true)
+        .limit(limite)
         .get();
     return snapshot.docs
         .map((doc) => Pedido.fromFirestore(doc.data(), doc.id))

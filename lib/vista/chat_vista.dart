@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../controlador/chat_controller.dart';
@@ -24,6 +26,7 @@ class _ChatVistaState extends State<ChatVista> {
 
   bool _drawerAbierto = false;
   List<String> _categorias = <String>[];
+  bool _escribiendo = false;
   static const List<Color> _acentosCategorias = [
     AppColors.cyan,
     AppColors.violet,
@@ -54,12 +57,15 @@ class _ChatVistaState extends State<ChatVista> {
       categorias = <String>[];
     }
 
-    await _chatController.cargarConversaciones();
-    if (_chatController.conversacionSeleccionada != null) {
-      await _chatController.cargarMensajes(
-        _chatController.conversacionSeleccionada!.id,
-      );
-    }
+    try {
+      await _chatController.cargarConversaciones();
+      if (_chatController.conversacionSeleccionada != null) {
+        await _chatController.cargarMensajes(
+          _chatController.conversacionSeleccionada!.id,
+        );
+      }
+    } catch (_) {}
+
     if (mounted) {
       setState(() => _categorias = categorias);
     }
@@ -68,6 +74,10 @@ class _ChatVistaState extends State<ChatVista> {
   Future<void> _enviarTexto(String texto) async {
     final contenido = texto.trim();
     if (contenido.isEmpty) return;
+
+    if (_escribiendo) {
+      setState(() => _escribiendo = false);
+    }
 
     _mensajeController.clear();
     FocusScope.of(context).unfocus();
@@ -84,7 +94,21 @@ class _ChatVistaState extends State<ChatVista> {
         ),
       );
     }
+    _iniciarEfectoEscritura();
     _scrollAlFinal();
+  }
+
+  /// Activa la escritura progresiva del último mensaje del asistente.
+  /// La animación vive en su propio widget (_MensajeSeEscribe), así que el
+  /// repintado no reconstruye la pantalla completa.
+  void _iniciarEfectoEscritura() {
+    final mensajes = _chatController.mensajes;
+    if (mensajes.isEmpty) return;
+    final ultimo = mensajes.last;
+    if (ultimo.autor == 'user') return;
+    if (ultimo.mensaje.isEmpty) return;
+    if (!mounted) return;
+    setState(() => _escribiendo = true);
   }
 
   void _scrollAlFinal() {
@@ -459,7 +483,8 @@ class _ChatVistaState extends State<ChatVista> {
                 await _chatController.cargarMensajes(conversacion.id);
                 if (!context.mounted) return;
                 Navigator.pop(context);
-                if (mounted) setState(() {});
+                if (!mounted) return;
+                setState(() => _escribiendo = false);
               },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
@@ -645,12 +670,21 @@ class _ChatVistaState extends State<ChatVista> {
 
         final mensaje = mensajes[index];
         final esUsuario = mensaje.autor == 'user';
-        final texto = mensaje.mensaje;
+        final esUltimo = index == mensajes.length - 1;
+        final escribiendo = _escribiendo && esUltimo && !esUsuario;
+
+        if (escribiendo) {
+          return _MensajeSeEscribe(
+            key: ValueKey('escribiendo-${mensaje.id}'),
+            texto: mensaje.mensaje,
+            scrollController: _scrollController,
+          );
+        }
 
         return _MensajeBurbuja(
           key: ValueKey(mensaje.id),
           esUsuario: esUsuario,
-          texto: texto,
+          texto: mensaje.mensaje,
         );
       },
     );
@@ -708,18 +742,123 @@ class _ChatVistaState extends State<ChatVista> {
   }
 }
 
+/// Burbuja del asistente que revela el texto progresivamente.
+/// Lleva su propio temporizador, así que durante la animación solo se
+/// repinta esta burbuja en lugar de reconstruir la pantalla completa.
+class _MensajeSeEscribe extends StatefulWidget {
+  const _MensajeSeEscribe({
+    super.key,
+    required this.texto,
+    this.scrollController,
+  });
+
+  final String texto;
+  final ScrollController? scrollController;
+
+  @override
+  State<_MensajeSeEscribe> createState() => _MensajeSeEscribeState();
+}
+
+class _MensajeSeEscribeState extends State<_MensajeSeEscribe> {
+  Timer? _timer;
+  int _visibles = 0;
+  bool _terminado = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _arrancar();
+  }
+
+  @override
+  void didUpdateWidget(covariant _MensajeSeEscribe oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.texto != widget.texto) {
+      _timer?.cancel();
+      _visibles = 0;
+      _terminado = false;
+      _arrancar();
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  void _arrancar() {
+    final total = widget.texto.length;
+    if (total == 0) {
+      _terminado = true;
+      return;
+    }
+
+    final paso = (total / 90).ceil().clamp(1, 6).toInt();
+    var ticks = 0;
+    _timer = Timer.periodic(const Duration(milliseconds: 16), (t) {
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
+      final nuevo = _visibles + paso;
+      if (nuevo >= total) {
+        t.cancel();
+        _timer = null;
+        setState(() {
+          _visibles = total;
+          _terminado = true;
+        });
+        return;
+      }
+      setState(() => _visibles = nuevo);
+      ticks++;
+      if (ticks % 6 == 0) _seguirScroll();
+    });
+  }
+
+  void _seguirScroll() {
+    final controller = widget.scrollController;
+    if (controller == null || !controller.hasClients) return;
+    controller.animateTo(
+      controller.position.maxScrollExtent,
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final total = widget.texto.length;
+    final visibles = _visibles.clamp(0, total).toInt();
+    return _MensajeBurbuja(
+      esUsuario: false,
+      texto: widget.texto.substring(0, visibles),
+      escribiendo: !_terminado,
+    );
+  }
+}
+
 class _MensajeBurbuja extends StatelessWidget {
   const _MensajeBurbuja({
     super.key,
     required this.esUsuario,
     required this.texto,
+    this.escribiendo = false,
   });
 
   final bool esUsuario;
   final String texto;
+  final bool escribiendo;
 
   @override
   Widget build(BuildContext context) {
+    final estilo = TextStyle(
+      color: esUsuario ? Colors.white : AppColors.textPrimary,
+      fontSize: 15,
+      height: 1.4,
+    );
+
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0, end: 1),
       duration: const Duration(milliseconds: 320),
@@ -761,58 +900,112 @@ class _MensajeBurbuja extends StatelessWidget {
                   ]
                 : null,
           ),
-          child: Text(
-            texto,
-            style: TextStyle(
-              color: esUsuario ? Colors.white : AppColors.textPrimary,
-              fontSize: 15,
-              height: 1.4,
-            ),
-          ),
+          child: escribiendo
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Flexible(child: Text(texto, style: estilo)),
+                    const _CursorBlink(),
+                  ],
+                )
+              : Text(texto, style: estilo),
         ),
       ),
     );
   }
 }
 
-class _TypingIndicator extends StatelessWidget {
-  const _TypingIndicator();
+class _CursorBlink extends StatefulWidget {
+  const _CursorBlink();
+
+  @override
+  State<_CursorBlink> createState() => _CursorBlinkState();
+}
+
+class _CursorBlinkState extends State<_CursorBlink>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 620),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0, end: 1),
-      duration: const Duration(milliseconds: 260),
-      curve: Curves.easeOut,
-      builder: (context, value, child) => Opacity(
-        opacity: value,
-        child: Transform.translate(
-          offset: Offset(0, (1 - value) * 8),
-          child: child,
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) => Opacity(
+        opacity: 0.15 + 0.85 * _controller.value,
+        child: const Text(
+          '▍',
+          style: TextStyle(fontSize: 15, height: 1.4),
         ),
       ),
-      child: const Padding(
-        padding: EdgeInsets.symmetric(vertical: 14),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            SizedBox(
-              width: 18,
-              height: 18,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: AppColors.violetSoft,
-              ),
-            ),
-            SizedBox(width: 10),
-            Text(
-              'Procesando...',
-              style: TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 13.5,
-              ),
-            ),
-          ],
+    );
+  }
+}
+
+class _TypingIndicator extends StatefulWidget {
+  const _TypingIndicator();
+
+  @override
+  State<_TypingIndicator> createState() => _TypingIndicatorState();
+}
+
+class _TypingIndicatorState extends State<_TypingIndicator>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1100),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceAlt,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(18),
+            topRight: Radius.circular(18),
+            bottomLeft: Radius.circular(5),
+            bottomRight: Radius.circular(18),
+          ),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: AnimatedBuilder(
+          animation: _controller,
+          builder: (context, _) => Row(
+            mainAxisSize: MainAxisSize.min,
+            children: List.generate(3, (i) {
+              final fase = (_controller.value - i * 0.22) % 1.0;
+              final intensidad = (1 - fase.abs() * 2).clamp(0.0, 1.0);
+              return Container(
+                margin: const EdgeInsets.symmetric(horizontal: 3),
+                width: 7,
+                height: 7,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.violetSoft.withValues(alpha: 0.25 + 0.75 * intensidad),
+                ),
+              );
+            }),
+          ),
         ),
       ),
     );

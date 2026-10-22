@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../controlador/firebase_controller.dart';
-import '../controlador/login_controller.dart';
 import '../modelo/firebase/firebase.dart';
 import '../tema/app_colors.dart';
 import '../tema/app_text_styles.dart';
 import '../tema/app_widgets.dart';
-import 'chat_vista.dart';
 import 'login_vista.dart';
 
 class SplashVista extends StatefulWidget {
@@ -34,17 +32,11 @@ class _SplashVistaState extends State<SplashVista> {
     if (!mounted) return;
 
     if (status == FirebaseStatus.connected) {
-      setState(() => _estado = 'Verificando sesión...');
-      final loginController = LoginController.instance;
-      final usuario = await loginController.cargarUsuarioActual();
-
-      if (!mounted) return;
+      setState(() => _estado = 'Preparando el acceso...');
 
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(
-          builder: (_) => usuario != null ? const ChatVista() : const LoginVista(),
-        ),
+        MaterialPageRoute(builder: (_) => const LoginVista()),
       );
       return;
     }

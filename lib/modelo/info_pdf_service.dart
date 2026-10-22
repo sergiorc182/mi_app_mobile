@@ -7,6 +7,7 @@ class InfoPdfService {
   static const String _asset = 'assets/info.pdf';
 
   List<String> _segmentos = [];
+  List<String> _segmentosNormalizados = [];
   bool _cargado = false;
 
   bool get cargado => _cargado;
@@ -24,8 +25,11 @@ class InfoPdfService {
       final texto = PdfTextExtractor(documento).extractText();
       documento.dispose();
       _segmentos = segmentar(texto);
+      _segmentosNormalizados =
+          _segmentos.map((s) => normalizarTexto(s)).toList();
     } catch (_) {
       _segmentos = [];
+      _segmentosNormalizados = [];
     }
   }
 
@@ -36,13 +40,15 @@ class InfoPdfService {
     final terminos = terminosDe(query);
 
     final puntajes = <MapEntry<String, int>>[];
-    for (final segmento in _segmentos) {
-      final texto = normalizar(segmento);
+    for (var i = 0; i < _segmentos.length; i++) {
+      final texto = i < _segmentosNormalizados.length
+          ? _segmentosNormalizados[i]
+          : normalizar(_segmentos[i]);
       var score = texto.contains(q) ? 3 : 0;
       for (final termino in terminos) {
         if (texto.contains(termino)) score += 1;
       }
-      if (score > 0) puntajes.add(MapEntry(segmento, score));
+      if (score > 0) puntajes.add(MapEntry(_segmentos[i], score));
     }
 
     puntajes.sort((a, b) => b.value.compareTo(a.value));

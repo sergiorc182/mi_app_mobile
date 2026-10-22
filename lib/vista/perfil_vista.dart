@@ -19,6 +19,7 @@ class _PerfilVistaState extends State<PerfilVista> {
   final PerfilController _perfilController = PerfilController.instance;
   final TextEditingController _nombreController = TextEditingController();
   final TextEditingController _apellidoController = TextEditingController();
+  final TextEditingController _dniController = TextEditingController();
   final TextEditingController _fotoController = TextEditingController();
   Usuario? _usuario;
   bool _isLoading = false;
@@ -33,6 +34,7 @@ class _PerfilVistaState extends State<PerfilVista> {
   void dispose() {
     _nombreController.dispose();
     _apellidoController.dispose();
+    _dniController.dispose();
     _fotoController.dispose();
     super.dispose();
   }
@@ -44,6 +46,7 @@ class _PerfilVistaState extends State<PerfilVista> {
       _usuario = usuario;
       _nombreController.text = usuario?.nombre ?? '';
       _apellidoController.text = usuario?.apellido ?? '';
+      _dniController.text = usuario?.dni ?? '';
       _fotoController.text = usuario?.fotoPerfil ?? '';
     });
   }
@@ -53,6 +56,7 @@ class _PerfilVistaState extends State<PerfilVista> {
     final actualizado = await _perfilController.actualizarPerfil(
       nombre: _nombreController.text,
       apellido: _apellidoController.text,
+      dni: _dniController.text,
       fotoPerfil: _fotoController.text,
     );
     setState(() => _isLoading = false);
@@ -144,6 +148,15 @@ class _PerfilVistaState extends State<PerfilVista> {
                       icon: Icons.badge_outlined,
                       labelText: 'Apellido',
                       hintText: 'Tu apellido',
+                      textInputAction: TextInputAction.next,
+                    ),
+                    const SizedBox(height: 14),
+                    TechTextField(
+                      controller: _dniController,
+                      icon: Icons.credit_card_outlined,
+                      labelText: 'DNI',
+                      hintText: 'Tu DNI',
+                      keyboardType: TextInputType.number,
                       textInputAction: TextInputAction.next,
                     ),
                     const SizedBox(height: 14),

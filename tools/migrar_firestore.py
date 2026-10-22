@@ -37,7 +37,7 @@ def _ts(valor):
 
 
 def migrar_usuarios(db) -> int:
-    print("\n[1/4] Migrando usuarios (users -> usuarios)...")
+    print("\n[1/5] Migrando usuarios (users -> usuarios)...")
     total = 0
     for doc in db.collection("users").stream():
         data = doc.to_dict() or {}
@@ -78,7 +78,7 @@ def _migrar_mensajes(db, conversacion_id: str, origen_ref=None) -> int:
 
 def migrar_conversaciones_subcoleccion(db) -> int:
     """Mueve users/{uid}/conversaciones -> conversaciones (raiz)."""
-    print("\n[2/4] Migrando conversaciones anidadas bajo users/{uid}...")
+    print("\n[2/5] Migrando conversaciones anidadas bajo users/{uid}...")
     total = 0
     for user in db.collection("users").stream():
         uid = user.id
@@ -108,7 +108,7 @@ def migrar_conversaciones_subcoleccion(db) -> int:
 
 def migrar_conversaciones_raiz(db) -> int:
     """Normaliza conversaciones que ya estan en la coleccion raiz."""
-    print("\n[2b/4] Normalizando conversaciones en la coleccion raiz...")
+    print("\n[2b/5] Normalizando conversaciones en la coleccion raiz...")
     total = 0
     for conv in db.collection("conversaciones").stream():
         data = conv.to_dict() or {}
@@ -125,7 +125,7 @@ def migrar_conversaciones_raiz(db) -> int:
 
 
 def migrar_catalogo(db) -> int:
-    print("\n[3/4] Migrando catalogo (assets/catalogo.json -> productos)...")
+    print("\n[3/5] Migrando catalogo (assets/catalogo.json -> productos)...")
     if not CATALOGO.exists():
         print(f"   AVISO: no se encontro {CATALOGO}. Se omite.")
         return 0
@@ -178,6 +178,36 @@ def migrar_catalogo(db) -> int:
     return total
 
 
+def sembrar_configuracion(db) -> int:
+    """Crea configuracion/asistente si no existe (no pisa lo customised)."""
+    print("\n[4/5] Sembrando configuracion/asistente...")
+    ref = db.collection("configuracion").document("asistente")
+    if ref.get().exists:
+        print("   ya existe, se conserva sin cambios.")
+        return 0
+    ref.set(
+        {
+            "nombreNegocio": "VendedorVirtual",
+            "moneda": "USD",
+            "mensajeBienvenida": (
+                "¡Hola! Soy tu vendedor virtual. Decime qué producto "
+                "buscás y te paso el precio y el link de compra."
+            ),
+            "instruccionesAsistente": (
+                "Respondé solo sobre el catálogo de productos y el alcance "
+                "del negocio. No inventes precios, stock ni condiciones de venta."
+            ),
+            "urlWeb": "",
+            "urlTelegram": "",
+            "catalogoHabilitado": True,
+            "comprasHabilitadas": True,
+            "updatedAt": firestore.SERVER_TIMESTAMP,
+        }
+    )
+    print("   configuracion/asistente creada.")
+    return 1
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Migra Firestore al esquema nuevo.")
     parser.add_argument(
@@ -212,6 +242,7 @@ def main() -> None:
     migrar_conversaciones_subcoleccion(db)
     migrar_conversaciones_raiz(db)
     migrar_catalogo(db)
+    sembrar_configuracion(db)
 
     print(
         "\nMigracion terminada. Verifica en la consola de Firebase antes de "

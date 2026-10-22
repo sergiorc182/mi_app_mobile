@@ -27,7 +27,12 @@ class ChatController {
     final uid = _uid;
     if (uid.isEmpty) return [];
 
-    conversaciones = await _firestoreService.obtenerConversaciones(uid);
+    try {
+      conversaciones = await _firestoreService.obtenerConversaciones(uid);
+    } catch (e) {
+      errorMensaje = _mensajeError(e);
+      return conversaciones;
+    }
     if (conversacionSeleccionada == null && conversaciones.isNotEmpty) {
       conversacionSeleccionada = conversaciones.first;
     }
@@ -38,7 +43,11 @@ class ChatController {
     final uid = _uid;
     if (uid.isEmpty) return [];
 
-    mensajes = await _firestoreService.obtenerMensajes(conversacionId);
+    try {
+      mensajes = await _firestoreService.obtenerMensajes(conversacionId);
+    } catch (e) {
+      errorMensaje = _mensajeError(e);
+    }
     return mensajes;
   }
 
@@ -46,7 +55,13 @@ class ChatController {
     final uid = _uid;
     if (uid.isEmpty) return null;
 
-    final id = await _firestoreService.crearConversacion(uid);
+    String id;
+    try {
+      id = await _firestoreService.crearConversacion(uid);
+    } catch (e) {
+      errorMensaje = _mensajeError(e);
+      return null;
+    }
     final ahora = DateTime.now();
     final nueva = Conversacion(
       id: id,
@@ -78,14 +93,16 @@ class ChatController {
   Future<void> _cargarCatalogo() async {
     if (_catalogoCargado) return;
     try {
-      final productos = await _firestoreService.obtenerProductos();
+      final productos = await _firestoreService.obtenerProductos(limite: 50);
       if (productos.isNotEmpty) {
         _productoService.usarCatalogo(productos);
       } else {
-        await _productoService.cargarCatalogo();
+        await _productoService.cargarCatalogo(consultarFirestore: false);
       }
     } catch (_) {
-      await _productoService.cargarCatalogo();
+      // Firestore no disponible: se usa el catálogo del bundle local sin
+      // volver a consultar la red.
+      await _productoService.cargarCatalogo(consultarFirestore: false);
     }
     _catalogoCargado = true;
   }
@@ -107,7 +124,7 @@ class ChatController {
         titulo,
       );
     } catch (_) {
-      return;
+      // Sin permiso de Firestore: el título queda solo en memoria.
     }
 
     for (var i = 0; i < conversaciones.length; i++) {
@@ -143,6 +160,27 @@ class ChatController {
     return palabras.length > 40 ? palabras.substring(0, 40).trim() : palabras;
   }
 
+  /// Ventana del historial que se envía a la IA. Sin tope, cada turno reenvía
+  /// la conversación completa y la latencia y el costo crecen sin límite.
+  static const int _maxMensajesHistorial = 12;
+
+  /// Devuelve las últimas interacciones recortando en un par user/assistant
+  /// para que el historial siempre empiece con un mensaje del usuario.
+  List<Map<String, String>> _historialReciente() {
+    final todos = mensajes
+        .map((m) => {
+              'role': m.autor == 'user' ? 'user' : 'assistant',
+              'content': m.mensaje,
+            })
+        .toList();
+
+    if (todos.length <= _maxMensajesHistorial) return todos;
+
+    var inicio = todos.length - _maxMensajesHistorial;
+    if (todos[inicio]['role'] == 'assistant') inicio += 1;
+    return todos.sublist(inicio);
+  }
+
   Future<List<Mensaje>> enviarMensaje(String texto) async {
     final uid = _uid;
     final contenido = texto.trim();
@@ -176,19 +214,10 @@ class ChatController {
 
       await _cargarCatalogo();
 
-      final historial = mensajes
-          .map((m) => {'role': m.autor == 'user' ? 'user' : 'assistant', 'content': m.mensaje})
-          .toList();
+      final historial = _historialReciente();
 
       final productos = _productoService.buscar(contenido);
-      if (productos.isNotEmpty) {
-        final contexto = productos.take(5).map((p) => p.presentacion).join('\n');
-        historial.add({
-          'role': 'system',
-          'content': 'Productos disponibles según la consulta del usuario:\n$contexto\n\n'
-              'Usá esta información para responder. No inventes productos que no estén en esta lista.',
-        });
-      }
+      final contextoCatalogo = productos.take(5).map((p) => p.presentacion).join('\n');
 
       if (!_infoPdfCargado) {
         await _infoPdfService.cargar();
@@ -196,18 +225,14 @@ class ChatController {
       }
 
       final fragmentos = _infoPdfService.buscar(contenido);
-      if (fragmentos.isNotEmpty) {
-        final info = fragmentos.join('\n');
-        historial.add({
-          'role': 'system',
-          'content': 'Información del asistente (extraída del documento de '
-              'referencia):\n$info\n\n'
-              'Usá esta información si responde a la consulta del usuario. '
-              'No inventes datos que no estén ahí.',
-        });
-      }
+      final contextoInfo = fragmentos.join('\n');
 
-      final respuesta = await _chatService.sendMessage(contenido, historial);
+      final respuesta = await _chatService.sendMessage(
+        contenido,
+        historial,
+        contextoCatalogo: contextoCatalogo.isEmpty ? null : contextoCatalogo,
+        contextoInfo: contextoInfo.isEmpty ? null : contextoInfo,
+      );
       await tituloFuture;
       final mensajeBot = Mensaje(
         id: '',
@@ -218,20 +243,37 @@ class ChatController {
       );
       await _firestoreService.guardarMensaje(conversacionId, mensajeBot);
     } catch (e) {
-      errorMensaje = e.toString();
+      errorMensaje = _mensajeError(e);
     } finally {
       isLoading = false;
-      mensajes = await _firestoreService.obtenerMensajes(conversacionId);
+      try {
+        mensajes = await _firestoreService.obtenerMensajes(conversacionId);
+      } catch (_) {
+        // Sin permiso de Firestore: se conserva lo que hay en memoria.
+      }
     }
 
     return mensajes;
+  }
+
+  String _mensajeError(Object e) {
+    final texto = e.toString();
+    if (texto.contains('permission-denied') || texto.contains('PERMISSION_DENIED')) {
+      return 'Sin permiso de Firestore: publicá las reglas del esquema nuevo '
+          '(firestore.rules) en el proyecto.';
+    }
+    return texto;
   }
 
   Future<void> eliminarConversacion(String conversacionId) async {
     final uid = _uid;
     if (uid.isEmpty) return;
 
-    await _firestoreService.eliminarConversacion(conversacionId);
+    try {
+      await _firestoreService.eliminarConversacion(conversacionId);
+    } catch (e) {
+      errorMensaje = _mensajeError(e);
+    }
     conversaciones.removeWhere((c) => c.id == conversacionId);
     if (conversacionSeleccionada?.id == conversacionId) {
       conversacionSeleccionada = conversaciones.isNotEmpty ? conversaciones.first : null;
@@ -244,7 +286,11 @@ class ChatController {
     if (uid.isEmpty) return;
 
     for (final conv in conversaciones) {
-      await _firestoreService.eliminarConversacion(conv.id);
+      try {
+        await _firestoreService.eliminarConversacion(conv.id);
+      } catch (e) {
+        errorMensaje = _mensajeError(e);
+      }
     }
     conversaciones = [];
     conversacionSeleccionada = null;
