@@ -1,0 +1,88 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function esAutenticado() {
+      return request.auth != null;
+    }
+
+    function esDueno(uid) {
+      return esAutenticado() && request.auth.uid == uid;
+    }
+
+    // ─── Usuarios ───
+    // Solo el dueño lee/escribe su perfil. No se guardan contraseñas acá.
+    match /usuarios/{uid} {
+      allow read: if esDueno(uid);
+      allow create, update: if esDueno(uid) &&
+        !('password' in request.resource.data) &&
+        !('contrasena' in request.resource.data);
+      allow delete: if false;
+    }
+
+    // ─── Catálogo y configuración (lectura pública autenticada) ───
+    // La escritura se hace desde un backend/consola confiable.
+    match /productos/{productoId} {
+      allow read: if esAutenticado();
+      allow write: if false;
+    }
+
+    match /categorias/{categoriaId} {
+      allow read: if esAutenticado();
+      allow write: if false;
+    }
+
+    match /documentos/{documentoId} {
+      allow read: if esAutenticado() &&
+        (resource.data.usuarioId == null || resource.data.usuarioId == request.auth.uid);
+      allow write: if false;
+    }
+
+    match /configuracion/{docId} {
+      allow read: if esAutenticado();
+      allow write: if false;
+    }
+
+    // ─── Conversaciones (el dueño se define por usuarioId) ───
+    match /conversaciones/{conversacionId} {
+      allow read, update, delete: if esAutenticado() &&
+        resource.data.usuarioId == request.auth.uid;
+      allow create: if esAutenticado() &&
+        request.resource.data.usuarioId == request.auth.uid;
+
+      // Mensajes: el dueño se obtiene de la conversación padre.
+      match /mensajes/{mensajeId} {
+        allow read, write: if esAutenticado() &&
+          get(/databases/$(database)/documents/conversaciones/$(conversacionId))
+            .data.usuarioId == request.auth.uid;
+      }
+    }
+
+    // ─── Carrito por usuario ───
+    match /carritos/{uid} {
+      allow read, write: if esDueno(uid);
+
+      match /items/{productoId} {
+        allow read, delete: if esDueno(uid);
+        allow create, update: if esDueno(uid) &&
+          request.resource.data.cantidad is int &&
+          request.resource.data.cantidad > 0;
+      }
+    }
+
+    // ─── Pedidos ───
+    // El usuario ve sus pedidos; la creación/actualización sensible
+    // (stock, pagos) se valida en un backend confiable. No se permite
+    // alterar pagos ni totales de forma arbitraria ni fingir pagos aprobados.
+    match /pedidos/{pedidoId} {
+      allow read: if esAutenticado() &&
+        resource.data.usuarioId == request.auth.uid;
+      allow create: if esAutenticado() &&
+        request.resource.data.usuarioId == request.auth.uid &&
+        request.resource.data.estadoPago in ['pendiente', 'iniciado', 'pending'] &&
+        request.resource.data.estado in ['pendiente', 'recibido', 'pending'];
+      allow update, delete: if false;
+    }
+  }
+}

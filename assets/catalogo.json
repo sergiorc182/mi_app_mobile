@@ -1,0 +1,182 @@
+[
+  {
+    "id": "AC01",
+    "categoria": "Aire Acondicionado",
+    "marca": "Philco",
+    "modelo": "PHS32",
+    "especificacion_clave": "3000 frigorías, Frio/Calor",
+    "precio_usd": 550,
+    "enlace_compra": "[link_ac01]"
+  },
+  {
+    "id": "AC02",
+    "categoria": "Aire Acondicionado",
+    "marca": "BGH",
+    "modelo": "Silent Air",
+    "especificacion_clave": "2250 frigorías, Inverter",
+    "precio_usd": 620,
+    "enlace_compra": "[link_ac02]"
+  },
+  {
+    "id": "AC03",
+    "categoria": "Aire Acondicionado",
+    "marca": "Samsung",
+    "modelo": "Digital Inverter",
+    "especificacion_clave": "4500 frigorías, Eficiencia A",
+    "precio_usd": 850,
+    "enlace_compra": "[link_ac03]"
+  },
+  {
+    "id": "AC04",
+    "categoria": "Aire Acondicionado",
+    "marca": "LG",
+    "modelo": "Dual Inverter",
+    "especificacion_clave": "3000 frigorías, WiFi",
+    "precio_usd": 720,
+    "enlace_compra": "[link_ac04]"
+  },
+  {
+    "id": "AC05",
+    "categoria": "Aire Acondicionado",
+    "marca": "Electra",
+    "modelo": "EcoSmart",
+    "especificacion_clave": "3500 frigorías, Bajo consumo",
+    "precio_usd": 590,
+    "enlace_compra": "[link_ac05]"
+  },
+  {
+    "id": "AC06",
+    "categoria": "Aire Acondicionado",
+    "marca": "Carrier",
+    "modelo": "XPower",
+    "especificacion_clave": "5000 frigorías, Tecnología Gold",
+    "precio_usd": 980,
+    "enlace_compra": "[link_ac06]"
+  },
+  {
+    "id": "AC07",
+    "categoria": "Aire Acondicionado",
+    "marca": "Surrey",
+    "modelo": "Compact",
+    "especificacion_clave": "2500 frigorías, On/Off",
+    "precio_usd": 480,
+    "enlace_compra": "[link_ac07]"
+  },
+  {
+    "id": "AC08",
+    "categoria": "Aire Acondicionado",
+    "marca": "Daikin",
+    "modelo": "Ururu Sarara",
+    "especificacion_clave": "3000 frigorías, Premium",
+    "precio_usd": 1200,
+    "enlace_compra": "[link_ac08]"
+  },
+  {
+    "id": "AC09",
+    "categoria": "Aire Acondicionado",
+    "marca": "Hisense",
+    "modelo": "Split Inverter",
+    "especificacion_clave": "3200 frigorías, Display oculto",
+    "precio_usd": 530,
+    "enlace_compra": "[link_ac09]"
+  },
+  {
+    "id": "AC10",
+    "categoria": "Aire Acondicionado",
+    "marca": "Midea",
+    "modelo": "Zenith",
+    "especificacion_clave": "2800 frigorías, Kit instalación",
+    "precio_usd": 510,
+    "enlace_compra": "[link_ac10]"
+  },
+  {
+    "id": "TE01",
+    "categoria": "Teléfono",
+    "marca": "Samsung",
+    "modelo": "Galaxy S24",
+    "especificacion_clave": "256GB, 8GB RAM, AI Camera",
+    "precio_usd": 900,
+    "enlace_compra": "[link_te01]"
+  },
+  {
+    "id": "TE02",
+    "categoria": "Teléfono",
+    "marca": "Apple",
+    "modelo": "iPhone 15",
+    "especificacion_clave": "128GB, Chip A16 Bionic",
+    "precio_usd": 1100,
+    "enlace_compra": "[link_te02]"
+  },
+  {
+    "id": "TE03",
+    "categoria": "Teléfono",
+    "marca": "Motorola",
+    "modelo": "Edge 50",
+    "especificacion_clave": "512GB, Carga Ultra Rápida",
+    "precio_usd": 750,
+    "enlace_compra": "[link_te03]"
+  },
+  {
+    "id": "TE04",
+    "categoria": "Teléfono",
+    "marca": "Xiaomi",
+    "modelo": "Redmi Note 13",
+    "especificacion_clave": "256GB, Cámara 200MP",
+    "precio_usd": 450,
+    "enlace_compra": "[link_te04]"
+  },
+  {
+    "id": "TE05",
+    "categoria": "Teléfono",
+    "marca": "Google",
+    "modelo": "Pixel 8",
+    "especificacion_clave": "128GB, Software puro, IA",
+    "precio_usd": 800,
+    "enlace_compra": "[link_te05]"
+  },
+  {
+    "id": "TE06",
+    "categoria": "Teléfono",
+    "marca": "Samsung",
+    "modelo": "Galaxy A55",
+    "especificacion_clave": "128GB, Batería 5000mAh",
+    "precio_usd": 350,
+    "enlace_compra": "[link_te06]"
+  },
+  {
+    "id": "TE07",
+    "categoria": "Teléfono",
+    "marca": "Apple",
+    "modelo": "iPhone 15 Pro",
+    "especificacion_clave": "256GB, Titanium",
+    "precio_usd": 1300,
+    "enlace_compra": "[link_te07]"
+  },
+  {
+    "id": "TE08",
+    "categoria": "Teléfono",
+    "marca": "Motorola",
+    "modelo": "Moto G84",
+    "especificacion_clave": "256GB, Pantalla pOLED",
+    "precio_usd": 300,
+    "enlace_compra": "[link_te08]"
+  },
+  {
+    "id": "TE09",
+    "categoria": "Teléfono",
+    "marca": "Xiaomi",
+    "modelo": "POCO X6",
+    "especificacion_clave": "512GB, Gamer Edition",
+    "precio_usd": 500,
+    "enlace_compra": "[link_te09]"
+  },
+  {
+    "id": "TE10",
+    "categoria": "Teléfono",
+    "marca": "Sony",
+    "modelo": "Xperia 1 V",
+    "especificacion_clave": "256GB, Enfoque profesional",
+    "precio_usd": 1400,
+    "enlace_compra": "[link_te10]"
+  }
+]

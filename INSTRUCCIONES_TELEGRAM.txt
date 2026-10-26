@@ -1,0 +1,52 @@
+========================================================================
+VENDEDORVIRTUAL - INTEGRACIÓN CON TELEGRAM Y MERCADO PAGO
+========================================================================
+
+1) CONFIGURACIÓN DE TELEGRAM (si aún no tenés el token)
+   - Abrí Telegram y buscá: @BotFather
+   - Escribí: /newbot
+   - Nombre: VendedorVirtual
+   - Usuario (debe terminar en "bot"): VendedorVirtualBot (o el que esté disponible)
+   - BotFather te dará un TOKEN tipo: 123456789:ABCdefGhIjkLmNoPqRsTuVwXyZ
+
+2) GUARDAR EL TOKEN EN .env
+   - Abrí el archivo .env (en la raíz del proyecto)
+   - Pegá tu token en la línea:
+     TELEGRAM_BOT_TOKEN=tu_token_aqui
+
+3) INICIAR EL BOT
+   - Abrí una terminal PowerShell en esta carpeta y ejecutá:
+     python telegram_bot\bot.py
+
+4) CÓMO PROBAR LA VENTA Y EL PAGO
+   a) Abrí tu bot en Telegram y escribí /start o preguntá por un producto:
+      Ejemplo: "Hola, busco un aire acondicionado" o "qué celulares tenés?"
+   b) La IA te recomendará los productos del catálogo y mostrará botones:
+      [💳 Comprar Philco PHS32 ($550 USD)]
+   c) Al hacer clic en comprar (o al escribir "lo quiero comprar"):
+      - El bot genera automáticamente una preferencia en Mercado Pago.
+      - Opción A: Botón "💳 Pagar con Mercado Pago" que abre el Checkout Sandbox.
+      - Opción B: Botón "🤝 Coordinar entrega y pago en efectivo".
+   d) Cierre "de palabra":
+      Si elegís coordinar o pagás en efectivo, el bot te pide tus datos de
+      entrega        y emite un Ticket de Pedido Confirmado formal (#VV-XXXX).
+
+5) VARIABLES DE ENTORNO QUE USA EL BOT
+   - GROQ_API_KEY, TELEGRAM_BOT_TOKEN  (obligatorias para arrancar)
+   - MERCADOPAGO_ACCESS_TOKEN           (si no está, el bot ofrece solo pago en efectivo)
+   - USD_A_ARS_COTIZACION              (default 1250)
+   - FIREBASE_API_KEY / FIREBASE_PROJECT_ID / FIREBASE_ADMIN_EMAIL /
+     FIREBASE_ADMIN_PASSWORD            (opcionales: leen el catálogo en vivo
+     desde Firestore; sin ellos usa assets/catalogo.json)
+   Copiá .env.example a .env y completá los valores. NO subas el .env a git.
+
+6) CATÁLOGO EN FIREBASE
+   - El bot y la app leen la colección 'productos' con el esquema nuevo:
+     nombre, descripcion, marca, categoriaId, precio, moneda, stock, activo,
+     sku, imagenUrl, urlExterna.
+   - Para sembrarlo:  python telegram_bot\seed_firestore.py
+     (necesita las variables FIREBASE_* del punto 5)
+   - Para migrar datos viejos:  python tools\migrar_firestore.py --key serviceAccountKey.json
+   - El bot también responde con el contenido de assets/info.pdf.
+
+========================================================================

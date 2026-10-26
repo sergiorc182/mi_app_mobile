@@ -1,0 +1,173 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+class Producto {
+  final String id;
+  final String nombre;
+  final String descripcion;
+  final String marca;
+  final String categoriaId;
+  final double precio;
+  final String moneda;
+  final int stock;
+  final bool activo;
+  final String sku;
+  final String imagenUrl;
+  final String urlExterna;
+  final String? storagePath;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
+
+  Producto({
+    required this.id,
+    required this.nombre,
+    required this.descripcion,
+    required this.marca,
+    required this.categoriaId,
+    required this.precio,
+    required this.moneda,
+    required this.stock,
+    required this.activo,
+    required this.sku,
+    required this.imagenUrl,
+    required this.urlExterna,
+    this.storagePath,
+    this.createdAt,
+    this.updatedAt,
+  });
+
+  factory Producto.fromFirestore(Map<String, dynamic> data, String id) {
+    return Producto(
+      id: id,
+      nombre: data['nombre']?.toString() ?? data['modelo']?.toString() ?? '',
+      descripcion: data['descripcion']?.toString() ??
+          data['especificacion_clave']?.toString() ??
+          data['especificacionClave']?.toString() ??
+          '',
+      marca: data['marca']?.toString() ?? '',
+      categoriaId: data['categoriaId']?.toString() ??
+          data['categoria']?.toString() ??
+          '',
+      precio: (data['precio'] as num?)?.toDouble() ??
+          (data['precio_usd'] as num?)?.toDouble() ??
+          0,
+      moneda: data['moneda']?.toString() ?? 'ARS',
+      stock: (data['stock'] as num?)?.toInt() ?? 0,
+      activo: data['activo'] as bool? ?? true,
+      sku: data['sku']?.toString() ?? '',
+      imagenUrl: data['imagenUrl']?.toString() ?? '',
+      urlExterna: data['urlExterna']?.toString() ??
+          data['enlace_compra']?.toString() ??
+          '',
+      storagePath: data['storagePath']?.toString(),
+      createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
+      updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
+    );
+  }
+
+  factory Producto.fromJson(Map<String, dynamic> json) {
+    return Producto(
+      id: json['id'] as String? ?? '',
+      nombre: json['nombre'] as String? ??
+          json['modelo'] as String? ??
+          '',
+      descripcion: json['descripcion'] as String? ??
+          json['especificacion_clave'] as String? ??
+          json['especificacionClave'] as String? ??
+          '',
+      marca: json['marca'] as String? ?? '',
+      categoriaId: json['categoriaId'] as String? ??
+          json['categoria'] as String? ??
+          '',
+      precio: (json['precio'] as num?)?.toDouble() ??
+          (json['precio_usd'] as num?)?.toDouble() ??
+          0,
+      moneda: json['moneda'] as String? ?? 'ARS',
+      stock: (json['stock'] as num?)?.toInt() ?? 0,
+      activo: json['activo'] as bool? ?? true,
+      sku: json['sku'] as String? ?? json['id'] as String? ?? '',
+      imagenUrl: json['imagenUrl'] as String? ?? '',
+      urlExterna: json['urlExterna'] as String? ??
+          json['enlace_compra'] as String? ??
+          '',
+      storagePath: json['storagePath'] as String?,
+    );
+  }
+
+  Map<String, dynamic> toFirestore({bool useServerTimestamps = false}) {
+    return {
+      'nombre': nombre,
+      'descripcion': descripcion,
+      'marca': marca,
+      'categoriaId': categoriaId,
+      'precio': precio,
+      'moneda': moneda,
+      'stock': stock,
+      'activo': activo,
+      'sku': sku,
+      'imagenUrl': imagenUrl,
+      'urlExterna': urlExterna,
+      if (storagePath != null && storagePath!.isNotEmpty)
+        'storagePath': storagePath,
+      'createdAt': useServerTimestamps
+          ? FieldValue.serverTimestamp()
+          : (createdAt != null ? Timestamp.fromDate(createdAt!) : FieldValue.serverTimestamp()),
+      'updatedAt': useServerTimestamps
+          ? FieldValue.serverTimestamp()
+          : (updatedAt != null ? Timestamp.fromDate(updatedAt!) : FieldValue.serverTimestamp()),
+    };
+  }
+
+  Producto copyWith({
+    String? id,
+    String? nombre,
+    String? descripcion,
+    String? marca,
+    String? categoriaId,
+    double? precio,
+    String? moneda,
+    int? stock,
+    bool? activo,
+    String? sku,
+    String? imagenUrl,
+    String? urlExterna,
+    String? storagePath,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return Producto(
+      id: id ?? this.id,
+      nombre: nombre ?? this.nombre,
+      descripcion: descripcion ?? this.descripcion,
+      marca: marca ?? this.marca,
+      categoriaId: categoriaId ?? this.categoriaId,
+      precio: precio ?? this.precio,
+      moneda: moneda ?? this.moneda,
+      stock: stock ?? this.stock,
+      activo: activo ?? this.activo,
+      sku: sku ?? this.sku,
+      imagenUrl: imagenUrl ?? this.imagenUrl,
+      urlExterna: urlExterna ?? this.urlExterna,
+      storagePath: storagePath ?? this.storagePath,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  String get modelo => nombre;
+
+  String get categoria => _nombreLegible(categoriaId);
+
+  static String _nombreLegible(String valor) {
+    if (valor.isEmpty) return '';
+    return valor
+        .replaceAll('_', ' ')
+        .split(' ')
+        .map((p) => p.isEmpty ? p : '${p[0].toUpperCase()}${p.substring(1)}')
+        .join(' ');
+  }
+
+  String get presentacion =>
+      '$marca $nombre - \$${precio.toStringAsFixed(0)} $moneda\n'
+      '  $descripcion\n'
+      '  [$urlExterna]';
+}
