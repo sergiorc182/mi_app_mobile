@@ -17,11 +17,13 @@ dependencies:
   firebase_auth: ^6.5.3
   google_sign_in: ^7.2.0
   cloud_firestore: ^6.6.0
+  firebase_storage: ^13.0.4
   firebase_analytics: ^12.4.0
   firebase_app_check: ^0.4.5
 
   # Groq AI
   http: ^1.2.0
+  url_launcher: ^6.3.0
 
   # Environment
   flutter_dotenv: ^5.2.1
@@ -39,7 +41,6 @@ flutter:
   assets:
     - .env
     - assets/catalogo.json
-    - assets/info.pdf
     - assets/icons/app_icon.png
 
 flutter_launcher_icons:

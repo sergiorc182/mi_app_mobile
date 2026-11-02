@@ -108,10 +108,40 @@ class ChatController {
     return _productoService.categorias;
   }
 
+  /// Arma el contexto del catálogo que se envía a la IA en cada consulta.
+  /// Se manda siempre (no solo cuando hay coincidencias) porque, si no se
+  /// envía, el modelo responde que "no tiene acceso al catálogo en tiempo
+  /// real".
+  String? _contextoCatalogo(String consulta) {
+    final catalogo = _productoService.catalogo;
+    if (catalogo.isEmpty) return null;
+
+    final coincidencias = _productoService.buscar(consulta).take(5).toList();
+    final buffer = StringBuffer()
+      ..writeln('Productos disponibles en total: ${catalogo.length}.');
+
+    if (coincidencias.isNotEmpty) {
+      buffer.writeln('Productos que coinciden con la consulta:');
+      for (final producto in coincidencias) {
+        buffer.writeln(producto.presentacion);
+      }
+    }
+
+    buffer.writeln('Catálogo actual (marca, nombre, categoría, precio y stock):');
+    for (final producto in catalogo.take(60)) {
+      buffer.writeln(
+        '- ${producto.marca} ${producto.nombre} | ${producto.categoria} | '
+        '\$${producto.precio.toStringAsFixed(0)} ${producto.moneda} | '
+        'stock: ${producto.stock}',
+      );
+    }
+    return buffer.toString().trim();
+  }
+
   Future<void> _cargarCatalogo() async {
     if (_catalogoCargado) return;
     try {
-      final productos = await _firestoreService.obtenerProductos(limite: 50);
+      final productos = await _firestoreService.obtenerProductos(limite: 200);
       if (productos.isNotEmpty) {
         _productoService.usarCatalogo(productos);
       } else {
@@ -241,11 +271,7 @@ class ChatController {
 
       String? contextoCatalogo;
       if (configuracion?.catalogoHabilitado ?? true) {
-        final productos = _productoService.buscar(contenido);
-        if (productos.isNotEmpty) {
-          contextoCatalogo =
-              productos.take(5).map((p) => p.presentacion).join('\n');
-        }
+        contextoCatalogo = _contextoCatalogo(contenido);
       }
 
       if (!_infoPdfCargado) {

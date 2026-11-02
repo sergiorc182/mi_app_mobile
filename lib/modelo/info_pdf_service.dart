@@ -1,10 +1,12 @@
-import 'package:flutter/services.dart' show rootBundle;
+import 'dart:typed_data';
+
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
 import 'texto_util.dart';
 
 class InfoPdfService {
-  static const String _asset = 'assets/info.pdf';
+  static const String _storagePath = 'info.pdf';
 
   List<String> _segmentos = [];
   List<String> _segmentosNormalizados = [];
@@ -14,13 +16,20 @@ class InfoPdfService {
   bool get hayInfo => _segmentos.isNotEmpty;
   List<String> get segmentos => List.unmodifiable(_segmentos);
 
-  Future<void> cargar() async {
+  Future<void> cargar({String? storagePath}) async {
     if (_cargado) return;
     _cargado = true;
     try {
-      final data = await rootBundle.load(_asset);
-      final bytes =
-          data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+      final path = storagePath ?? _storagePath;
+      final ref = FirebaseStorage.instance.ref(path);
+      final Uint8List? bytes = await ref.getData();
+
+      if (bytes == null || bytes.isEmpty) {
+        _segmentos = [];
+        _segmentosNormalizados = [];
+        return;
+      }
+
       final documento = PdfDocument(inputBytes: bytes);
       final texto = PdfTextExtractor(documento).extractText();
       documento.dispose();

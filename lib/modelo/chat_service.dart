@@ -20,8 +20,9 @@ class ChatService {
       "y tecnología. Hoy es $fechaHoy. Tus responsabilidades son: "
       "1) Comprender las necesidades del usuario mediante conversación. "
       "2) Hacer preguntas específicas para acotar la búsqueda. "
-      "3) Recomendar productos basándote en la información que el backend te "
-      "proporcione (catálogo de productos). "
+      "3) Recomendar productos basándote en el catálogo actual que se incluye "
+      "en este mensaje. Tenés acceso a ese catálogo: nunca digas que no tenés "
+      "acceso al catálogo ni que no podés consultarlo en tiempo real. "
       "4) Mostrar los enlaces de compra cuando estén disponibles. "
       "5) Guiar al usuario activamente en el proceso comercial hasta la confirmación de la compra. "
       "En cada respuesta, intentá concretar la venta: ofrecé avanzar al siguiente paso "
@@ -107,11 +108,12 @@ class ChatService {
   }) {
     final buffer = StringBuffer(_systemPrompt(fechaHoy()));
     if (contextoCatalogo != null && contextoCatalogo.trim().isNotEmpty) {
-      buffer.write('\n\nPRODUCTOS DISPONIBLES PARA ESTA CONSULTA:\n');
+      buffer.write('\n\nCATÁLOGO ACTUAL EN TIEMPO REAL (tenés acceso a estos datos):\n');
       buffer.write(contextoCatalogo.trim());
       buffer.write(
         '\nUsá esta información para responder. No inventes productos que no '
-        'estén en esta lista.',
+        'estén en esta lista. Si falta un dato, pedí la aclaración, pero no '
+        'respondas que no tenés acceso al catálogo.',
       );
     }
     if (contextoInfo != null && contextoInfo.trim().isNotEmpty) {
