@@ -29,6 +29,7 @@ class ProductoMP(BaseModel):
     modelo: str
     especificacion_clave: str = ""
     precio_usd: float
+    moneda: str = "ARS"
 
 
 @app.get("/health")

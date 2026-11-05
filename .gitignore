@@ -50,3 +50,6 @@ app.*.map.json
 # Firebase service account keys (nunca subir al repo)
 *serviceAccount*.json
 serviceAccountKey.json
+
+# Node
+node_modules/

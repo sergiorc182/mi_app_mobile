@@ -1,0 +1,73 @@
+PASOS PARA LEVANTAR LA API DE MERCADO PAGO (PARA LA APP)
+
+IMPORTANTE:
+- Esto NO usa Telegram. Solo se levanta la API con FastAPI.
+- El token de Mercado Pago queda en el archivo .env, nunca va dentro de Flutter.
+- Para la muestra, lo más práctico es usar ngrok (opción 1B) para no tener que levantarla en la PC de la muestra.
+
+----------------------------------------
+OPCIÓN 1: LEVANTARLA EN LA MISMA PC DONDE SE CORRE FLUTTER
+----------------------------------------
+
+1) Tener los archivos
+   - Llevá la carpeta "telegram_bot/" completa a esa PC
+   - Llevá el archivo ".env" (de la raíz del proyecto) a esa PC. Tiene que tener:
+     MERCADOPAGO_ACCESS_TOKEN=APP_USR-...
+
+2) Instalar dependencias
+   Abrí una terminal en la carpeta telegram_bot/
+   pip install -p -r requirements.txt
+   (o pip install -r requirements.txt)
+
+3) Levantar la API
+   Abrí una terminal en telegram_bot/ y ejecutá:
+   python -m uvicorn api_mp:app --host 0.0.0.0 --port 8000 --reload
+
+4) Probarla
+   Abrí http://127.0.0.1:8000/ /health. Debería devolver {"status":"ok"}
+   También podés probar en http://127.0.0.1:8000/docs
+
+5) Configurar Flutter
+   Editá lib/modelo/mercadopago_api_service.dart
+   Cambiá baseUrl según el caso:
+   - Mismo PC: http://127.0.0.1:8000
+   - Emulator Android: http://10.0.2.2:8000
+   - Celular físico en misma WiFi: http://IP_DE_TU_PC:8000 (ver con ipconfig)
+
+----------------------------------------
+OPCIÓN 1B: LEVANTAR EN TU PC CON NGROK (RECOMENDADA PARA LA MUESTRA)
+----------------------------------------
+
+1) En tu PC actual
+   - Levantá la API en telegram_bot/:
+     python -m uvicorn api_mp:app --host 0.0.0.0 --port 8000 --reload
+   - Abrí otra terminal y levantá ngrok:
+     ngrok http 8000
+   - Copiá la URL HTTPS que te da ngrok (ej: https://abc123.ngrok-free.app)
+
+2) Cambiar URL en Flutter
+   Editá lib/modelo/mercadopago_api_service.dart
+   Cambiá baseUrl por la URL de ngrok:
+   static const String baseUrl = 'https://abc123.ngrok-free.app';
+
+3) Subir cambios
+   git add lib/modelo/mercadopago_api_service.dart
+   git commit -m "Usar URL ngrok para API Mercado Pago"
+   git push
+
+4) En la PC de la muestra
+   git pull
+   flutter pub get
+   flutter run
+   Con tu PC encendida, con ngrok y la API levantadas, la app va a generar el link de Mercado Pago.
+
+----------------------------------------
+NOTAS IMPORTANTES
+----------------------------------------
+- NO ejecutes python bot.py. Con uvicorn solamente alcanza.
+- .env es obligatorio. Sin it no se genera la preferencia.
+- url_launcher ya está agregado en pubspec.yaml
+- MercadoPagoApiService ya está creado en lib/modelo/mercadopago_api_service.dart
+- Si podés grabar una foto, podes: `curl -X POST http://127.0.0.1:8000/crear-preferencia -H "Content-Type: application/json" -d '{"id":"TEST","marca":"Test","modelo":"Test","especificacion_clave":"Test", "precio_usd": 100}'` para probar que la preferencia se crea correctamente.
+- Cuanto ngrok se desconecta/cambia la URL, tenés to cambiarla nuevamente en Flutter y volver a subirlo.
+- If is per el carrito, it's not necessary to have Telegram for this API.

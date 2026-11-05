@@ -55,13 +55,11 @@ load_dotenv(PROJECT_ROOT / ".env")
 try:
     from mercadopago_service import (
         crear_preferencia_pago,
-        formatear_precio_ars,
         obtener_cotizacion_ars,
     )
 except ImportError:
     from telegram_bot.mercadopago_service import (
         crear_preferencia_pago,
-        formatear_precio_ars,
         obtener_cotizacion_ars,
     )
 
@@ -117,6 +115,8 @@ def system_prompt() -> str:
         "general fuera de las ventas. "
         "NO inventes productos, marcas, precios, stock, URLs ni características fuera del catálogo. "
         "si el catálogo no lo tiene, decís que no está disponible o pedís ajustar la búsqueda. "
+        "Si el usuario pide el catálogo, la lista de productos o un archivo, no digas que no tenés "
+        "acceso: respondé que puede verlo con el comando /catalogo y preguntale qué categoría le interesa. "
         "ESTILO DE RESPUESTA: sé BREVE y directo, pensado para pantalla de celular. "
         "Respondé en 2 a 4 frases cortas. Usá listas con viñetas si hay más de una opción "
         "o dato clave. Sin introducciones tipo '¡claro!', sin despedidas largas ni repeticiones. "
@@ -165,45 +165,88 @@ def cargar_catalogo() -> None:
     if token:
         headers["Authorization"] = f"Bearer {token}"
     try:
-        r = requests.get(url, headers=headers, timeout=5)
-        if r.status_code == 200:
-            docs = r.json().get("documents", [])
+        docs = []
+        page_token = None
+        while True:
+            params = {"pageSize": 300}
+            if page_token:
+                params["pageToken"] = page_token
+            r = requests.get(url, headers=headers, params=params, timeout=10)
+            if r.status_code != 200:
+                logger.warning(f"Firestore respondió {r.status_code}. Usando catálogo local.")
+                docs = []
+                break
+            data = r.json()
+            docs.extend(data.get("documents", []))
+            page_token = data.get("nextPageToken")
+            if not page_token:
+                break
+
+        if docs:
             prods = []
             for d in docs:
                 fields = d.get("fields", {})
                 precio = _campo_firestore(fields, "precio", "precio_usd", "precioUSD")
+                moneda = _campo_firestore(fields, "moneda") or "ARS"
                 prods.append({
                     "id": _campo_firestore(fields, "id") or d.get("name", "").split("/")[-1],
                     "categoria": _campo_firestore(fields, "categoriaId", "categoria") or "",
                     "marca": _campo_firestore(fields, "marca") or "",
                     "modelo": _campo_firestore(fields, "nombre", "modelo") or "",
                     "especificacion_clave": _campo_firestore(fields, "descripcion", "especificacion_clave", "especificacionClave") or "",
+                    "precio": float(precio or 0),
                     "precio_usd": float(precio or 0),
+                    "moneda": str(moneda).upper(),
                     "enlace_compra": _campo_firestore(fields, "urlExterna", "enlace_compra", "enlaceCompra") or "",
                 })
-            if prods:
-                _catalogo = [p for p in prods if p.get("marca") or p.get("modelo")]
-                logger.info(f"Catálogo en tiempo real sincronizado desde Firestore ({len(_catalogo)} productos)")
-                return
-        else:
-            logger.warning(f"Firestore respondió {r.status_code}. Usando catálogo local.")
+            _catalogo = [p for p in prods if p.get("marca") or p.get("modelo")]
+            logger.info(f"Catálogo en tiempo real sincronizado desde Firestore ({len(_catalogo)} productos)")
+            return
     except Exception as e:
         logger.warning(f"No se pudo consultar Firestore en vivo: {e}. Usando catálogo local.")
 
     # 2. Fallback a catálogo local
     ruta = PROJECT_ROOT / "assets" / "catalogo.json"
     with open(ruta, encoding="utf-8") as f:
-        _catalogo = json.load(f)
+        locales = json.load(f)
+    for p in locales:
+        p["precio"] = float(p.get("precio", p.get("precio_usd", 0)) or 0)
+        p["moneda"] = str(p.get("moneda") or "USD").upper()
+    _catalogo = locales
 
 
 def cargar_info_pdf() -> None:
     global _info_segmentos
-    ruta = PROJECT_ROOT / "assets" / "info.pdf"
-    if not ruta.exists():
+    ruta_local = PROJECT_ROOT / "assets" / "info.pdf"
+    ruta_storage = "conocimiento_ia/vendedorVirtual.pdf"
+    project_id = os.getenv("FIREBASE_PROJECT_ID", "mi-app-mobile-8fd75").strip()
+    bucket = os.getenv("FIREBASE_STORAGE_BUCKET") or f"{project_id}.appspot.com"
+
+    # Intentar descargar desde Firebase Storage primero
+    try:
+        encoded_path = ruta_storage.replace("/", "%2F")
+        url = f"https://firebasestorage.googleapis.com/v0/b/{bucket}/o/{encoded_path}?alt=media"
+        headers = {}
+        token = _token_firebase()
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        resp = requests.get(url, headers=headers, timeout=30)
+        if resp.status_code == 200 and resp.content:
+            # Guardar temporalmente y leer
+            ruta_local.parent.mkdir(parents=True, exist_ok=True)
+            with open(ruta_local, "wb") as f:
+                f.write(resp.content)
+            logger.info("PDF descargado desde Firebase Storage (conocimiento_ia/vendedorVirtual.pdf)")
+        else:
+            logger.warning(f"No se pudo descargar desde Firebase Storage ({resp.status_code}). Usando archivo local si existe.")
+    except Exception as e:
+        logger.warning(f"Error descargando PDF desde Firebase Storage: {e}. Usando archivo local si existe.")
+
+    if not ruta_local.exists():
         logger.warning("No se encontró assets/info.pdf. El bot no usará el documento de referencia.")
         return
     try:
-        reader = PdfReader(str(ruta))
+        reader = PdfReader(str(ruta_local))
         texto = "\n".join((pagina.extract_text() or "") for pagina in reader.pages)
         _info_segmentos = _segmentar_info(texto)
         logger.info(f"Documento de referencia cargado: {len(_info_segmentos)} segmentos.")
@@ -275,12 +318,36 @@ def _normalizar(texto: str) -> str:
     return texto.lower()
 
 
+_PALABRAS_IGNORADAS = {
+    "para", "con", "los", "las", "una", "uno", "unos", "unas", "del", "por",
+    "como", "que", "mas", "muy", "sin", "sus", "este", "esta", "estos", "estas",
+    "quiero", "busco", "necesito", "tenes", "tiene", "hay", "precio", "calidad",
+    "buen", "buena", "mejor", "algo", "solo", "pero", "sobre", "entre", "hasta",
+}
+
+_SINONIMOS = {
+    "gaming": ["gamer", "juego", "juegos"],
+    "jugar": ["gamer", "juego", "juegos"],
+    "competitivo": ["gamer", "hz", "refresco"],
+    "celular": ["smartphone", "telefono"],
+    "telefono": ["celular", "smartphone"],
+    "heladera": ["refrigerador", "refrigeradora"],
+    "refrigerador": ["heladera"],
+    "computadora": ["notebook", "pc", "computacion"],
+    "computacion": ["notebook", "pc"],
+}
+
+
 def buscar_productos(query: str) -> List[Dict[str, Any]]:
     q = _normalizar(query)
-    # Búsqueda por palabras completas y fragmentos
-    palabras = [p for p in q.split() if len(p) > 2]
-    coincidencias = []
+    palabras = [
+        p for p in re.split(r"\W+", q)
+        if len(p) > 2 and p not in _PALABRAS_IGNORADAS
+    ]
+    if not palabras:
+        palabras = [p for p in q.split() if len(p) > 2]
 
+    puntajes = []
     for prod in _catalogo:
         marca = _normalizar(prod.get("marca", ""))
         modelo = _normalizar(prod.get("modelo", ""))
@@ -288,19 +355,46 @@ def buscar_productos(query: str) -> List[Dict[str, Any]]:
         cat = _normalizar(prod.get("categoria", ""))
         texto_completo = f"{marca} {modelo} {espec} {cat}"
 
-        if q in texto_completo:
-            coincidencias.append(prod)
-        elif palabras and any(p in texto_completo for p in palabras):
-            coincidencias.append(prod)
+        score = 10 if q and q in texto_completo else 0
+        for palabra in palabras:
+            variantes = [palabra] + _SINONIMOS.get(palabra, [])
+            if any(v in texto_completo for v in variantes):
+                score += 3
+                if any(v in marca or v in modelo or v in cat for v in variantes):
+                    score += 2
 
-    return coincidencias
+        if score > 0:
+            puntajes.append((score, prod))
+
+    puntajes.sort(key=lambda x: x[0], reverse=True)
+    return [prod for _, prod in puntajes]
+
+
+def _precio_producto(p: Dict[str, Any]) -> tuple[float, str]:
+    precio = float(p.get("precio", p.get("precio_usd", 0)) or 0)
+    moneda = str(p.get("moneda") or "ARS").upper()
+    return precio, moneda
+
+
+def _formatear_precio(p: Dict[str, Any]) -> str:
+    precio, moneda = _precio_producto(p)
+    formateado = f"{precio:,.0f}".replace(",", ".")
+    if moneda == "ARS":
+        return f"${formateado} ARS"
+    precio_ars = precio * obtener_cotizacion_ars()
+    ars_formateado = f"{precio_ars:,.0f}".replace(",", ".")
+    return f"${formateado} USD (~${ars_formateado} ARS)"
+
+
+def _precio_corto(p: Dict[str, Any]) -> str:
+    precio, moneda = _precio_producto(p)
+    formateado = f"{precio:,.0f}".replace(",", ".")
+    return f"${formateado} {moneda}"
 
 
 def presentar_producto(p: Dict[str, Any]) -> str:
-    precio_usd = round(float(p["precio_usd"]))
-    precio_ars = formatear_precio_ars(float(p["precio_usd"]))
     return (
-        f"• {p['marca']} {p['modelo']} - ${precio_usd} USD (~{precio_ars})\n"
+        f"• {p['marca']} {p['modelo']} - {_formatear_precio(p)}\n"
         f"  Detalle: {p['especificacion_clave']}"
     )
 
@@ -367,8 +461,7 @@ async def generar_mensaje_checkout(
     producto: Dict[str, Any],
     chat_id: int,
 ) -> tuple[str, InlineKeyboardMarkup]:
-    precio_usd = float(producto.get("precio_usd", 0))
-    precio_ars = formatear_precio_ars(precio_usd)
+    precio_texto = _formatear_precio(producto)
     prod_id = producto.get("id", "")
     titulo = f"{producto.get('marca', '')} {producto.get('modelo', '')}"
 
@@ -387,7 +480,7 @@ async def generar_mensaje_checkout(
         f"━━━━━━━━━━━━━━━━━━━━━━\n"
         f"📦 *Producto:* {titulo}\n"
         f"📝 *Detalle:* {producto.get('especificacion_clave', '')}\n"
-        f"💵 *Precio:* ${precio_usd:,.0f} USD (~{precio_ars})\n"
+        f"💵 *Precio:* {precio_texto}\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
         f"Elegí tu método preferido para concretar el pedido:"
     )
@@ -415,7 +508,7 @@ async def manejar_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         categoria = data.split("cat:", 1)[1]
         prods = [p for p in _catalogo if p.get("categoria") == categoria]
         botones = [
-            [InlineKeyboardButton(f"Comprar {p['marca']} {p['modelo']} (${p['precio_usd']} USD)", callback_data=f"comprar:{p['id']}")]
+            [InlineKeyboardButton(f"Comprar {p['marca']} {p['modelo']} ({_precio_corto(p)})", callback_data=f"comprar:{p['id']}")]
             for p in prods[:6]
         ]
         await query.message.reply_text(
@@ -448,11 +541,11 @@ async def manejar_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         _ultimo_producto[chat_id] = prod
         _estados[chat_id] = "esperando_datos_entrega"
 
-        precio_ars = formatear_precio_ars(float(prod['precio_usd']))
+        precio_texto = _formatear_precio(prod)
         texto = (
             f"📝 *Coordinación de Pedido (Pago contra Entrega)*\n\n"
             f"Producto: *{prod['marca']} {prod['modelo']}*\n"
-            f"Monto total: *{precio_ars}* (${prod['precio_usd']} USD)\n\n"
+            f"Monto total: *{precio_texto}*\n\n"
             f"Para reservar y coordinar el despacho, por favor envíame en un solo mensaje tus datos:\n"
             f"1. *Nombre y Apellido*\n"
             f"2. *Teléfono de contacto*\n"
@@ -477,7 +570,7 @@ async def mensaje(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         _estados[chat_id] = None  # Resetear estado
 
         nro_orden = f"VV-{random.randint(1000, 9999)}"
-        precio_ars = formatear_precio_ars(float(prod['precio_usd'])) if prod else "A convenir"
+        precio_ars = _formatear_precio(prod) if prod else "A convenir"
         prod_nombre = f"{prod['marca']} {prod['modelo']}" if prod else "Producto seleccionado"
 
         mensaje_confirmacion = (
@@ -506,6 +599,17 @@ async def mensaje(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text(texto, parse_mode=ParseMode.MARKDOWN, reply_markup=teclado)
         return
 
+    # 2b. Pedido del catálogo en lenguaje natural
+    frase_sin_acentos = frase_norm
+    for acentuada, plana in {"á": "a", "é": "e", "í": "i", "ó": "o", "ú": "u"}.items():
+        frase_sin_acentos = frase_sin_acentos.replace(acentuada, plana)
+    if any(
+        kw in frase_sin_acentos
+        for kw in ("catalogo", "catalog", "lista de productos", "todos los productos")
+    ):
+        await catalogo_cmd(update, context)
+        return
+
     # 3. Flujo conversacional con Groq e inyección de catálogo
     await update.effective_chat.send_action(action=ChatAction.TYPING)
 
@@ -532,7 +636,7 @@ async def mensaje(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         # Armar botones de compra rápida para los primeros 2 productos
         for p in productos[:2]:
             botones_compra.append(
-                [InlineKeyboardButton(f"💳 Comprar {p['marca']} {p['modelo']} (${p['precio_usd']} USD)", callback_data=f"comprar:{p['id']}")]
+                [InlineKeyboardButton(f"💳 Comprar {p['marca']} {p['modelo']} ({_precio_corto(p)})", callback_data=f"comprar:{p['id']}")]
             )
 
     info = buscar_info(texto_usuario)

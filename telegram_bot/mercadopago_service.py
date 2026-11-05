@@ -41,9 +41,10 @@ def crear_preferencia_pago(
     if not token:
         raise ValueError("Falta MERCADOPAGO_ACCESS_TOKEN en el archivo .env")
 
-    precio_usd = float(producto.get("precio_usd", 0))
+    precio = float(producto.get("precio", producto.get("precio_usd", 0)) or 0)
+    moneda = str(producto.get("moneda") or "ARS").upper()
     cotizacion = obtener_cotizacion_ars()
-    precio_ars = round(precio_usd * cotizacion, 2)
+    precio_ars = round(precio, 2) if moneda == "ARS" else round(precio * cotizacion, 2)
     titulo = f"{producto.get('marca', '')} {producto.get('modelo', '')}".strip()
     descripcion = producto.get("especificacion_clave", titulo)
 

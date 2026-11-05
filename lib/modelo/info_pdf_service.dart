@@ -6,7 +6,7 @@ import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'texto_util.dart';
 
 class InfoPdfService {
-  static const String _storagePath = 'info.pdf';
+  static const String _storagePath = 'conocimiento_ia/vendedorVirtual.pdf';
 
   List<String> _segmentos = [];
   List<String> _segmentosNormalizados = [];
